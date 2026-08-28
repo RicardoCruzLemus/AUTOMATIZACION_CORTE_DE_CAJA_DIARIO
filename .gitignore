@@ -1,0 +1,10 @@
+# Entorno Virtual y Caché
+__pycache__/
+*.pyc
+*.pyo
+
+# Variables de entorno
+.env
+
+# Logs locales (opcional)
+*.log
