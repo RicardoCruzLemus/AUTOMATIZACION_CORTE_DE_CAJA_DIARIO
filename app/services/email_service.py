@@ -106,6 +106,8 @@ def check_emails():
             if status != 'OK':
                 continue
                 
+            archivos_exitosos = []
+            
             for response_part in msg_data:
                 if isinstance(response_part, tuple):
                     msg = email.message_from_bytes(response_part[1])
@@ -143,8 +145,7 @@ def check_emails():
                     except Exception as e:
                         logging.error(f"Error de autenticación con el servidor para guardar adjuntos: {str(e)}")
                         continue
-                        
-                    archivos_exitosos = []
+
                     
                     # Procesar partes del correo buscando adjuntos
                     for part in msg.walk():

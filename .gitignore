@@ -8,3 +8,6 @@ __pycache__/
 
 # Logs locales (opcional)
 *.log
+transfer_logs.json
+correos_procesados.json
+
