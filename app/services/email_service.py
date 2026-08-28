@@ -38,10 +38,28 @@ def save_procesado(msg_id):
             json.dump(list(procesados), f)
 
 def extract_date(subject):
-    # Busca patrones como DD/MM/YYYY o DD-MM-YYYY
-    match = re.search(r'(\d{2})[/-](\d{2})[/-](\d{4})', subject)
+    # 1. Busca fechas con separadores (/ - .) y acepta años de 2 o 4 dígitos
+    # Ej: 25/08/2026, 25-08-26, 25.08.2026
+    match = re.search(r'(\d{2})[/\-\.](\d{2})[/\-\.](\d{2,4})', subject)
+    if match:
+        day, month, year = match.groups()
+        if len(year) == 2:
+            year = f"20{year}"
+        return f"{day}-{month}-{year}"
+        
+    # Limpia espacios para buscar fechas pegadas
+    clean_subj = subject.replace(" ", "")
+    
+    # 2. Busca fechas de 8 dígitos pegadas (DDMMYYYY)
+    match = re.search(r'(\d{2})(\d{2})(\d{4})', clean_subj)
     if match:
         return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+        
+    # 3. Busca fechas de 6 dígitos pegadas (DDMMYY)
+    match = re.search(r'(\d{2})(\d{2})(\d{2})', clean_subj)
+    if match:
+        return f"{match.group(1)}-{match.group(2)}-20{match.group(3)}"
+        
     return None
 
 def extract_company(subject):
@@ -124,9 +142,11 @@ def check_emails():
                         
                     logging.info(f"Leyendo correo: {subject}")
                     
-                    # Validar que el asunto contenga palabras clave (cuadre, corte)
-                    if not any(word in subject.lower() for word in ['cuadre', 'corte']):
-                        logging.warning(f"Asunto sin palabra clave (cuadre/corte): {subject}. Ignorando.")
+                    # Validar que el asunto contenga palabras clave (muy permisivo)
+                    # Acepta: corte, cuadre, caja, cort, cuadr, cadre, crte
+                    keywords = ['corte', 'cuadre', 'caja', 'cort', 'cuadr', 'cadre', 'crte']
+                    if not any(word in subject.lower() for word in keywords):
+                        logging.warning(f"Asunto sin palabra clave: {subject}. Ignorando.")
                         # Guardar en procesados para no volver a leerlo
                         if msg_id: save_procesado(msg_id)
                         continue
