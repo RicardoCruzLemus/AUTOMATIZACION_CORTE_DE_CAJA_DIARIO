@@ -9,11 +9,13 @@ import re
 import json
 from app.config import Config
 from app.services.watcher import authenticate, append_log
-from app.services.smtp_service import send_confirmation
+# Importación de smtp_service deshabilitada - confirmaciones de correo no activas
+# from app.services.smtp_service import send_confirmation
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-PROCESADOS_FILE = 'correos_procesados.json'
+# Ruta absoluta para el archivo de correos procesados (evita pérdida por cambio de directorio)
+PROCESADOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'correos_procesados.json')
 
 MONTHS = {
     '01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
@@ -119,7 +121,8 @@ def check_emails():
         for email_id in email_ids:
             procesados = load_procesados()
             
-            # Usar PEEK para no marcar el correo como leído
+            # Usar PEEK para obtener el cuerpo sin marcarlo como leído inmediatamente. 
+            # Se marcará como leído explícitamente al final si se procesa correctamente.
             status, msg_data = mail.fetch(email_id, '(BODY.PEEK[])')
             if status != 'OK':
                 continue
@@ -159,6 +162,12 @@ def check_emails():
                         if msg_id: save_procesado(msg_id)
                         continue
                         
+                    # Registrar el correo como procesado Y marcarlo como leído en IMAP
+                    # ANTES de descargar archivos. Esto evita duplicados si el script se reinicia.
+                    if msg_id:
+                        save_procesado(msg_id)
+                    mail.store(email_id, '+FLAGS', '\\Seen')
+                    
                     # Autenticar con el servidor de red antes de guardar
                     try:
                         authenticate()
@@ -214,16 +223,8 @@ def check_emails():
                                 logging.info(f"[{filename}] {msg_log}")
                                 append_log(filename, "IGNORADO", msg_log)
                                 
-            # Enviar correo de confirmación si hubo archivos exitosos
-            if archivos_exitosos:
-                # El usuario solicitó que la confirmación llegue siempre a ricardocruzprogra@gmail.com
-                # en lugar de al remitente original.
-                send_confirmation(Config.IMAP_USER, company, date_str, archivos_exitosos)
-                                
-            # Guardar en la libreta una vez procesado este correo
-            if msg_id:
-                save_procesado(msg_id)
             
+
         mail.close()
         mail.logout()
     except Exception as e:

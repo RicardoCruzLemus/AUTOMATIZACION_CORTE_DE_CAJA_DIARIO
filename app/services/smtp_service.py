@@ -5,6 +5,9 @@ import logging
 from app.config import Config
 
 def send_confirmation(to_email, company, date_str, processed_files):
+    logging.info("El envío de correo de confirmación está deshabilitado.")
+    return # Función deshabilitada a petición del usuario
+    
     if not processed_files:
         return # No enviamos nada si no se procesó ningún archivo exitosamente
         
