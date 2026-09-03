@@ -1,25 +1,109 @@
 import os
 import time
 import logging
-import imaplib
-import email
-import email.utils
-from email.header import decode_header
 import re
 import json
+import base64
+import msal
+import requests
+from pathlib import Path
 from app.config import Config
 from app.services.watcher import authenticate, append_log
-from app.services.smtp_service import send_confirmation
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-PROCESADOS_FILE = 'correos_procesados.json'
+# Ruta absoluta para el archivo de correos procesados y token de MSAL
+PROCESADOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'correos_procesados.json')
+TOKEN_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.token_cache.json')
+
+GRAPH_URL = "https://graph.microsoft.com/v1.0"
+SCOPES_DELEGADOS = ["Mail.Read"] # Se redujo de ReadWrite a Read para evitar el bloqueo del Administrador
 
 MONTHS = {
     '01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
     '05': 'Mayo', '06': 'Junio', '07': 'Julio', '08': 'Agosto',
     '09': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre'
 }
+
+# ==========================================
+# CLASES PARA OAUTH2 Y MICROSOFT GRAPH API
+# ==========================================
+class Autenticador:
+    def __init__(self, tenant, client_id, usuario_esperado):
+        self.authority = f"https://login.microsoftonline.com/{tenant}"
+        self.usuario_esperado = (usuario_esperado or "").strip().lower() or None
+        self.archivo_cache = Path(TOKEN_CACHE_FILE)
+        
+        self.cache = msal.SerializableTokenCache()
+        if self.archivo_cache.exists():
+            self.cache.deserialize(self.archivo_cache.read_text(encoding="utf-8"))
+            
+        self.app = msal.PublicClientApplication(
+            client_id, authority=self.authority, token_cache=self.cache)
+
+    def _guardar_cache(self):
+        if self.cache.has_state_changed:
+            self.archivo_cache.write_text(self.cache.serialize(), encoding="utf-8")
+
+    def obtener_token(self):
+        cuentas = self.app.get_accounts()
+        cuenta = None
+        if self.usuario_esperado and cuentas:
+            for c in cuentas:
+                if (c.get("username") or "").lower() == self.usuario_esperado:
+                    cuenta = c
+                    break
+        elif cuentas:
+            cuenta = cuentas[0]
+            
+        resultado = None
+        if cuenta:
+            # Intento de login silencioso con token guardado
+            resultado = self.app.acquire_token_silent(SCOPES_DELEGADOS, account=cuenta)
+            
+        if not resultado:
+            # Flujo de Dispositivo (Device Code Flow) - Pide login interactivo en navegador
+            flujo = self.app.initiate_device_flow(scopes=SCOPES_DELEGADOS)
+            if "user_code" not in flujo:
+                raise Exception(f"No se pudo iniciar device code flow: {flujo}")
+            logging.warning("\n" + "=" * 70)
+            logging.warning(">>> AUTENTICACION REQUERIDA (OAUTH2) <<<")
+            logging.warning(flujo["message"])
+            if self.usuario_esperado:
+                logging.warning(f"    Inicia sesion con: {self.usuario_esperado}")
+            logging.warning("=" * 70 + "\n")
+            resultado = self.app.acquire_token_by_device_flow(flujo)
+            
+        self._guardar_cache()
+        if "access_token" not in resultado:
+            raise Exception(f"Fallo de autenticacion: {resultado.get('error_description', resultado)}")
+            
+        return resultado["access_token"]
+
+
+class ClienteGraph:
+    def __init__(self, token):
+        self.token = token
+        self.base = f"{GRAPH_URL}/me"
+        self.sesion = requests.Session()
+        self.sesion.headers.update({
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/json"
+        })
+
+    def get(self, endpoint, params=None):
+        url = f"{self.base}{endpoint}"
+        r = self.sesion.get(url, params=params, timeout=30)
+        r.raise_for_status()
+        return r.json()
+        
+    def patch(self, endpoint, json_data):
+        url = f"{self.base}{endpoint}"
+        r = self.sesion.patch(url, json=json_data, timeout=30)
+        r.raise_for_status()
+        return r.json()
+# ==========================================
+
 
 def load_procesados():
     if os.path.exists(PROCESADOS_FILE):
@@ -38,8 +122,6 @@ def save_procesado(msg_id):
             json.dump(list(procesados), f)
 
 def extract_date(subject):
-    # 1. Busca fechas con separadores (/ - .) y acepta años de 2 o 4 dígitos
-    # Ej: 25/08/2026, 25-08-26, 25.08.2026
     match = re.search(r'(\d{2})[/\-\.](\d{2})[/\-\.](\d{2,4})', subject)
     if match:
         day, month, year = match.groups()
@@ -47,15 +129,11 @@ def extract_date(subject):
             year = f"20{year}"
         return f"{day}-{month}-{year}"
         
-    # Limpia espacios para buscar fechas pegadas
     clean_subj = subject.replace(" ", "")
-    
-    # 2. Busca fechas de 8 dígitos pegadas (DDMMYYYY)
     match = re.search(r'(\d{2})(\d{2})(\d{4})', clean_subj)
     if match:
         return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
         
-    # 3. Busca fechas de 6 dígitos pegadas (DDMMYY)
     match = re.search(r'(\d{2})(\d{2})(\d{2})', clean_subj)
     if match:
         return f"{match.group(1)}-{match.group(2)}-20{match.group(3)}"
@@ -87,150 +165,127 @@ def get_unique_filename(destination_dir, filename):
     return new_filename
 
 def check_emails():
+    # Validacion: No arrancar conexión si falta Configuración de TI
+    if not Config.TENANT_ID or not Config.CLIENT_ID or "00000000" in Config.TENANT_ID:
+        logging.warning("Esperando a que TI proporcione CLIENT_ID y TENANT_ID reales en el archivo .env...")
+        return
+        
     try:
-        logging.info("Conectando al servidor IMAP...")
-        # Intentar conexión segura (SSL) en el puerto configurado (993)
-        try:
-            mail = imaplib.IMAP4_SSL(Config.IMAP_SERVER, Config.IMAP_PORT)
-        except ConnectionRefusedError:
-            logging.warning(f"Conexión rechazada en el puerto {Config.IMAP_PORT}. Intentando puerto estándar 143 (Sin SSL)...")
-            mail = imaplib.IMAP4(Config.IMAP_SERVER, 143)
-            # A veces los servidores en el puerto 143 requieren STARTTLS
-            try:
-                mail.starttls()
-            except Exception:
-                pass # Si no soporta starttls, seguimos con la conexión plana
-                
-        mail.login(Config.IMAP_USER, Config.IMAP_PASSWORD)
+        logging.info("Verificando sesion OAuth2 de Microsoft Graph...")
+        auth = Autenticador(Config.TENANT_ID, Config.CLIENT_ID, Config.ACCOUNT_USERNAME)
+        token = auth.obtener_token()
+        graph = ClienteGraph(token)
         
-        # Seleccionar la bandeja de entrada
-        mail.select('inbox')
+        # 1. Buscar últimos 50 correos, ordenados por fecha más reciente
+        params = {
+            "$select": "id,internetMessageId,subject,receivedDateTime,hasAttachments",
+            "$orderby": "receivedDateTime desc",
+            "$top": "50"
+        }
+        resp = graph.get("/mailFolders/inbox/messages", params=params)
+        correos = resp.get("value", [])
         
-        # Buscar correos no leídos
-        status, messages = mail.search(None, 'UNSEEN')
-        if status != 'OK':
-            logging.error("Error al buscar correos.")
+        if not correos:
+            logging.info("Bandeja revisada. No hay correos nuevos.")
             return
-
-        email_ids = messages[0].split()
-        if not email_ids:
-            logging.info("No hay correos nuevos.")
             
-        for email_id in email_ids:
-            procesados = load_procesados()
+        procesados = load_procesados()
+        nuevos = 0
+        omitidos = 0
+        
+        for msg in correos:
+            msg_id = msg.get("internetMessageId")
+            graph_id = msg.get("id")
+            subject = msg.get("subject", "")
+            has_attachments = msg.get("hasAttachments", False)
             
-            # Usar PEEK para no marcar el correo como leído
-            status, msg_data = mail.fetch(email_id, '(BODY.PEEK[])')
-            if status != 'OK':
+            if msg_id in procesados:
+                omitidos += 1
                 continue
                 
-            archivos_exitosos = []
+            nuevos += 1
+            logging.info(f"Leyendo correo: {subject}")
             
-            for response_part in msg_data:
-                if isinstance(response_part, tuple):
-                    msg = email.message_from_bytes(response_part[1])
+            keywords = ['corte', 'cuadre', 'caja', 'cort', 'cuadr', 'cadre', 'crte']
+            if not any(word in subject.lower() for word in keywords):
+                logging.warning(f"Asunto sin palabra clave: {subject}. Ignorando.")
+                if msg_id: save_procesado(msg_id)
+                # Ya no podemos marcar como leido por falta de permisos (Mail.ReadWrite)
+                continue
+                
+            date_str = extract_date(subject)
+            company = extract_company(subject)
+            
+            if not date_str:
+                logging.warning(f"No se encontro fecha valida en el asunto: {subject}. Saltando adjuntos.")
+                if msg_id: save_procesado(msg_id)
+                continue
+                
+            if not has_attachments:
+                logging.warning(f"El correo {subject} no tiene adjuntos. Ignorando.")
+                if msg_id: save_procesado(msg_id)
+                continue
+                
+            # Autenticar red local
+            try:
+                authenticate()
+            except Exception as e:
+                logging.error(f"Error de autenticacion con el servidor local para guardar adjuntos: {str(e)}")
+                continue
+                
+            # 2. Descargar adjuntos vía Graph API
+            adjuntos_resp = graph.get(f"/messages/{graph_id}/attachments")
+            adjuntos = adjuntos_resp.get("value", [])
+            
+            if msg_id: save_procesado(msg_id)
+            
+            for att in adjuntos:
+                # Solo queremos adjuntos de archivos físicos
+                if att.get("@odata.type") != "#microsoft.graph.fileAttachment":
+                    continue
                     
-                    # Verificar la libreta de memoria
-                    msg_id = msg.get("Message-ID")
-                    if msg_id in procesados:
-                        continue
-                        
-                    # Decodificar el asunto
-                    subject, encoding = decode_header(msg["Subject"])[0]
-                    if isinstance(subject, bytes):
-                        subject = subject.decode(encoding if encoding else 'utf-8', errors='ignore')
-                        
-                    logging.info(f"Leyendo correo: {subject}")
+                filename = att.get("name", "")
+                content_bytes = att.get("contentBytes", "")
+                
+                filename = sanitize_filename(filename)
+                
+                if filename.lower().endswith(('.pdf', '.xls', '.xlsx')):
+                    day, month, year = date_str.split('-')
+                    month_name = MONTHS.get(month, month)
                     
-                    # Validar que el asunto contenga palabras clave (muy permisivo)
-                    # Acepta: corte, cuadre, caja, cort, cuadr, cadre, crte
-                    keywords = ['corte', 'cuadre', 'caja', 'cort', 'cuadr', 'cadre', 'crte']
-                    if not any(word in subject.lower() for word in keywords):
-                        logging.warning(f"Asunto sin palabra clave: {subject}. Ignorando.")
-                        # Guardar en procesados para no volver a leerlo
-                        if msg_id: save_procesado(msg_id)
-                        continue
-                        
-                    date_str = extract_date(subject)
-                    company = extract_company(subject)
+                    dest_folder = os.path.join(Config.DEST_DIR, company, year, month_name, date_str)
+                    os.makedirs(dest_folder, exist_ok=True)
                     
-                    if not date_str:
-                        logging.warning(f"No se encontró fecha válida en el asunto: {subject}. Saltando adjuntos.")
-                        if msg_id: save_procesado(msg_id)
-                        continue
-                        
-                    # Autenticar con el servidor de red antes de guardar
+                    unique_filename = get_unique_filename(dest_folder, filename)
+                    filepath = os.path.join(dest_folder, unique_filename)
+                    
                     try:
-                        authenticate()
+                        # Decodificar el archivo que viene en Base64 desde Microsoft
+                        with open(filepath, 'wb') as f:
+                            f.write(base64.b64decode(content_bytes))
+                            
+                        msg_log = f"Guardado desde correo (Graph) como {unique_filename} en {company}/{year}/{month_name}/{date_str}"
+                        logging.info(msg_log)
+                        append_log(filename, "EXITO", msg_log, destino=dest_folder)
                     except Exception as e:
-                        logging.error(f"Error de autenticación con el servidor para guardar adjuntos: {str(e)}")
-                        continue
+                        msg_log = f"Error al guardar adjunto en el servidor local: {str(e)}"
+                        logging.error(msg_log)
+                        append_log(filename, "ERROR", msg_log)
+                else:
+                    msg_log = f"Archivo ignorado por extension no permitida en {company}/{date_str}"
+                    logging.info(f"[{filename}] {msg_log}")
+                    append_log(filename, "IGNORADO", msg_log)
 
-                    
-                    # Procesar partes del correo buscando adjuntos
-                    for part in msg.walk():
-                        if part.get_content_maintype() == 'multipart':
-                            continue
-                        if part.get('Content-Disposition') is None:
-                            continue
-                            
-                        filename = part.get_filename()
-                        if filename:
-                            # Decodificar el nombre del archivo
-                            filename_decoded, encoding = decode_header(filename)[0]
-                            if isinstance(filename_decoded, bytes):
-                                filename = filename_decoded.decode(encoding if encoding else 'utf-8', errors='ignore')
-                                
-                            filename = sanitize_filename(filename)
-                            
-                            # Solo PDFs y Excels
-                            if filename.lower().endswith(('.pdf', '.xls', '.xlsx')):
-                                # Extraer Año y Mes para enrutamiento histórico
-                                day, month, year = date_str.split('-')
-                                month_name = MONTHS.get(month, month)
-                                
-                                # Crear estructura de carpetas: Empresa/Año/Mes/Fecha
-                                dest_folder = os.path.join(Config.DEST_DIR, company, year, month_name, date_str)
-                                os.makedirs(dest_folder, exist_ok=True)
-                                
-                                unique_filename = get_unique_filename(dest_folder, filename)
-                                filepath = os.path.join(dest_folder, unique_filename)
-                                
-                                # Guardar archivo directamente en el servidor
-                                try:
-                                    with open(filepath, 'wb') as f:
-                                        f.write(part.get_payload(decode=True))
-                                        
-                                    msg_log = f"Guardado desde correo como {unique_filename} en {company}/{year}/{month_name}/{date_str}"
-                                    logging.info(msg_log)
-                                    append_log(filename, "EXITO", msg_log, destino=dest_folder)
-                                    archivos_exitosos.append(unique_filename)
-                                except Exception as e:
-                                    msg_log = f"Error al guardar adjunto en el servidor: {str(e)}"
-                                    logging.error(msg_log)
-                                    append_log(filename, "ERROR", msg_log)
-                            else:
-                                msg_log = f"Archivo ignorado por extensión no permitida en {company}/{date_str}"
-                                logging.info(f"[{filename}] {msg_log}")
-                                append_log(filename, "IGNORADO", msg_log)
-                                
-            # Enviar correo de confirmación si hubo archivos exitosos
-            if archivos_exitosos:
-                # El usuario solicitó que la confirmación llegue siempre a ricardocruzprogra@gmail.com
-                # en lugar de al remitente original.
-                send_confirmation(Config.IMAP_USER, company, date_str, archivos_exitosos)
-                                
-            # Guardar en la libreta una vez procesado este correo
-            if msg_id:
-                save_procesado(msg_id)
-            
-        mail.close()
-        mail.logout()
+        if nuevos == 0 and omitidos > 0:
+            logging.info(f"Bandeja revisada. Se omitieron {omitidos} correos antiguos ya procesados. Esperando nuevos correos...")
+        elif nuevos > 0:
+            logging.info(f"Bandeja revisada. {nuevos} nuevos analizados, {omitidos} antiguos omitidos.")
+
     except Exception as e:
-        logging.error(f"Error en el servicio de correos: {str(e)}")
+        logging.error(f"Error en el servicio de correos Microsoft Graph: {str(e)}", exc_info=True)
 
 def start_email_service():
-    logging.info("Servicio de Correos iniciado.")
+    logging.info("Servicio de Correos (OAUTH2) iniciado.")
     while True:
         check_emails()
         time.sleep(Config.EMAIL_CHECK_INTERVAL)
