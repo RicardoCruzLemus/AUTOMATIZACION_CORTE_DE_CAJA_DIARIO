@@ -19,15 +19,11 @@ class Config:
     # Recurso base para autenticacion
     IPC_SHARE = os.getenv('IPC_SHARE', r'\\SRV-DESAIT5\IPC$')
 
-    # Configuraciones de Email (IMAP)
-    IMAP_SERVER = os.getenv('IMAP_SERVER', 'imap.gmail.com')
-    IMAP_PORT = int(os.getenv('IMAP_PORT', 993)) 
-    IMAP_USER = os.getenv('IMAP_USER', 'ricardocruzprogra@gmail.com')
-    IMAP_PASSWORD = os.getenv('IMAP_PASSWORD', '')
-    
-    # Configuraciones de SMTP (Para enviar respuestas)
-    SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-    SMTP_PORT = int(os.getenv('SMTP_PORT', 587))
+    # Configuraciones de Email (Microsoft Graph API - OAUTH2)
+    TENANT_ID = os.getenv('TENANT_ID')
+    CLIENT_ID = os.getenv('CLIENT_ID')
+    AUTH_MODE = os.getenv('AUTH_MODE', 'delegated')
+    ACCOUNT_USERNAME = os.getenv('ACCOUNT_USERNAME', 'rcruz@canella.com.gt')
     
     # Tiempo de espera entre lecturas (en segundos, ej: 60 = 1 minuto)
     EMAIL_CHECK_INTERVAL = 60
