@@ -155,13 +155,11 @@ def extract_date(subject):
         if len(year) == 2:
             year = f"20{year}"
         return f"{day}-{month}-{year}"
-        
-    clean_subj = subject.replace(" ", "")
-    match = re.search(r'(\d{2})(\d{2})(\d{4})', clean_subj)
+    match = re.search(r'(?<!\d)(\d{2})(\d{2})(\d{4})(?!\d)', subject)
     if match:
         return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
         
-    match = re.search(r'(\d{2})(\d{2})(\d{2})', clean_subj)
+    match = re.search(r'(?<!\d)(\d{2})(\d{2})(\d{2})(?!\d)', subject)
     if match:
         return f"{match.group(1)}-{match.group(2)}-20{match.group(3)}"
         
