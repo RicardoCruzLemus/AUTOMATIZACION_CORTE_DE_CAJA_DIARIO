@@ -13,13 +13,14 @@ from app.config import Config
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 LOG_FILE = 'transfer_logs.json'
 
-def append_log(filename, status, message, destino=''):
+def append_log(filename, status, message, destino='', asunto=''):
     log_entry = {
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'filename': filename,
         'status': status,
         'message': message,
-        'destino': destino
+        'destino': destino,
+        'asunto': asunto
     }
     logs = []
     if os.path.exists(LOG_FILE):

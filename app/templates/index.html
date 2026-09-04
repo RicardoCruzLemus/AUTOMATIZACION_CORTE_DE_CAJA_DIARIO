@@ -321,12 +321,13 @@
                         <th>Archivo</th>
                         <th>Estado</th>
                         <th>Destino</th>
+                        <th>Asunto</th>
                         <th>Detalle</th>
                     </tr>
                 </thead>
                 <tbody id="logs-body">
                     <tr>
-                        <td colspan="5" class="empty-state">Cargando registros...</td>
+                        <td colspan="6" class="empty-state">Cargando registros...</td>
                     </tr>
                 </tbody>
             </table>
@@ -349,13 +350,13 @@
             try {
                 const response = await fetch('/api/logs');
                 allLogs = await response.json();
-                applyFilters();
+                applyFilters(false); // No resetear la pagina en auto-refresh
             } catch (error) {
                 console.error("Error fetching logs:", error);
             }
         }
 
-        function applyFilters() {
+        function applyFilters(resetPage = true) {
             const searchText = document.getElementById('filter-filename').value.toLowerCase();
             const dateFrom = document.getElementById('filter-date-from').value;
             const dateTo = document.getElementById('filter-date-to').value;
@@ -381,7 +382,9 @@
                 return true;
             });
 
-            currentPage = 1;
+            if (resetPage !== false) {
+                currentPage = 1;
+            }
             renderTable();
         }
 
@@ -397,7 +400,7 @@
             const paginationBar = document.getElementById('pagination-bar');
 
             if (filteredLogs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No se encontraron registros con los filtros aplicados.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No se encontraron registros con los filtros aplicados.</td></tr>';
                 paginationBar.style.display = 'none';
                 return;
             }
@@ -419,6 +422,7 @@
                         <td style="font-weight: 500; vertical-align: top;">${log.filename}</td>
                         <td style="vertical-align: top;"><span class="badge ${statusClass}">${log.status}</span></td>
                         <td style="color: var(--text-secondary); vertical-align: top; font-size: 0.85rem;">${log.destino || '-'}</td>
+                        <td style="color: var(--text-secondary); vertical-align: top; font-size: 0.85rem;">${log.asunto || 'Local/Manual'}</td>
                         <td style="color: var(--text-secondary); line-height: 1.4; vertical-align: top;">${log.message}</td>
                     </tr>
                 `;

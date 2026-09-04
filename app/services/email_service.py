@@ -4,6 +4,7 @@ import logging
 import re
 import json
 import base64
+from datetime import datetime, timedelta
 import msal
 import requests
 from pathlib import Path
@@ -121,6 +122,32 @@ def save_procesado(msg_id):
         with open(PROCESADOS_FILE, 'w') as f:
             json.dump(list(procesados), f)
 
+# ==========================================
+# MARCA DE AGUA (HIGH WATERMARK)
+# Guarda el receivedDateTime del correo más reciente visto.
+# En cada ciclo solo se piden correos DESPUES de este momento.
+# Esto elimina la necesidad de una ventana de días fija.
+# ==========================================
+WATERMARK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'watermark.json')
+
+def load_watermark():
+    """Carga la fecha del último correo procesado. Si no existe, usa hace 2 días como inicio seguro."""
+    if os.path.exists(WATERMARK_FILE):
+        try:
+            with open(WATERMARK_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('last_seen', None)
+        except Exception:
+            pass
+    # Primera vez: arranca desde hace 2 dias para no perderse nada reciente
+    fallback = (datetime.utcnow() - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    return fallback
+
+def save_watermark(received_datetime_str):
+    """Guarda la fecha del correo más reciente como nueva marca de agua."""
+    with open(WATERMARK_FILE, 'w') as f:
+        json.dump({'last_seen': received_datetime_str, 'updated': datetime.utcnow().isoformat()}, f)
+
 def extract_date(subject):
     match = re.search(r'(\d{2})[/\-\.](\d{2})[/\-\.](\d{2,4})', subject)
     if match:
@@ -176,11 +203,19 @@ def check_emails():
         token = auth.obtener_token()
         graph = ClienteGraph(token)
         
-        # 1. Buscar últimos 50 correos, ordenados por fecha más reciente
+        # MARCA DE AGUA: solo pedimos correos NUEVOS desde la ultima vez que revisamos
+        # Esto garantiza que la consulta siempre devuelva pocos correos (solo los nuevos)
+        # sin importar cuantos correos historicos tenga la bandeja
+        watermark = load_watermark()
+        # Buffer de 2 minutos para atrapar correos que llegan ligeramente fuera de orden
+        watermark_dt = datetime.strptime(watermark, '%Y-%m-%dT%H:%M:%SZ') - timedelta(minutes=2)
+        desde = watermark_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+        
         params = {
             "$select": "id,internetMessageId,subject,receivedDateTime,hasAttachments",
-            "$orderby": "receivedDateTime desc",
-            "$top": "50"
+            "$orderby": "receivedDateTime asc",  # Mas antiguo primero para avanzar la marca en orden
+            "$top": "50",  # 50 es mas que suficiente para un ciclo de 60 segundos
+            "$filter": f"receivedDateTime ge {desde}"
         }
         resp = graph.get("/mailFolders/inbox/messages", params=params)
         correos = resp.get("value", [])
@@ -244,12 +279,13 @@ def check_emails():
                 if att.get("@odata.type") != "#microsoft.graph.fileAttachment":
                     continue
                     
+                subject = msg.get("subject", "Sin asunto")
                 filename = att.get("name", "")
                 content_bytes = att.get("contentBytes", "")
                 
                 filename = sanitize_filename(filename)
                 
-                if filename.lower().endswith(('.pdf', '.xls', '.xlsx')):
+                if filename.lower().endswith(('.pdf', '.xls', '.xlsx', '.xlsm')):
                     day, month, year = date_str.split('-')
                     month_name = MONTHS.get(month, month)
                     
@@ -266,20 +302,32 @@ def check_emails():
                             
                         msg_log = f"Guardado desde correo (Graph) como {unique_filename} en {company}/{year}/{month_name}/{date_str}"
                         logging.info(msg_log)
-                        append_log(filename, "EXITO", msg_log, destino=dest_folder)
+                        append_log(filename, "EXITO", msg_log, destino=dest_folder, asunto=subject)
                     except Exception as e:
                         msg_log = f"Error al guardar adjunto en el servidor local: {str(e)}"
                         logging.error(msg_log)
-                        append_log(filename, "ERROR", msg_log)
+                        append_log(filename, "ERROR", msg_log, asunto=subject)
                 else:
                     msg_log = f"Archivo ignorado por extension no permitida en {company}/{date_str}"
                     logging.info(f"[{filename}] {msg_log}")
-                    append_log(filename, "IGNORADO", msg_log)
+                    append_log(filename, "IGNORADO", msg_log, asunto=subject)
+
+        # Actualizar la marca de agua al correo mas reciente del ciclo
+        if correos:
+            ultima_fecha = correos[-1].get("receivedDateTime")  # El mas reciente (asc)
+            if ultima_fecha:
+                # Normalizar formato: '2026-09-04T20:18:01Z' o '2026-09-04T20:18:01+00:00'
+                ultima_fecha_utc = ultima_fecha.replace('+00:00', 'Z').split('.')[0]
+                if not ultima_fecha_utc.endswith('Z'):
+                    ultima_fecha_utc += 'Z'
+                save_watermark(ultima_fecha_utc)
 
         if nuevos == 0 and omitidos > 0:
-            logging.info(f"Bandeja revisada. Se omitieron {omitidos} correos antiguos ya procesados. Esperando nuevos correos...")
+            logging.info(f"Bandeja revisada. Se omitieron {omitidos} correos ya procesados. Esperando nuevos correos...")
+        elif nuevos == 0 and omitidos == 0:
+            logging.info("Bandeja revisada. No hay correos nuevos.")
         elif nuevos > 0:
-            logging.info(f"Bandeja revisada. {nuevos} nuevos analizados, {omitidos} antiguos omitidos.")
+            logging.info(f"Bandeja revisada. {nuevos} nuevos analizados, {omitidos} omitidos.")
 
     except Exception as e:
         logging.error(f"Error en el servicio de correos Microsoft Graph: {str(e)}", exc_info=True)
