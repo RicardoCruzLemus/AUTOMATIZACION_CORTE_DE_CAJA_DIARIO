@@ -31,7 +31,7 @@ def append_log(filename, status, message, destino='', asunto=''):
             pass
     logs.insert(0, log_entry)  # Add to beginning
     with open(LOG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(logs[:100], f, indent=4)  # Keep only last 100 logs
+        json.dump(logs, f, indent=4)  # Sin limite de logs
 
 def get_unique_filename(destination_dir, filename):
     base, ext = os.path.splitext(filename)
