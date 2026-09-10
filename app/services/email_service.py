@@ -4,6 +4,7 @@ import logging
 import re
 import json
 import base64
+import unicodedata
 from datetime import datetime, timedelta
 import msal
 import requests
@@ -166,13 +167,20 @@ def extract_date(subject):
     return None
 
 def extract_company(subject):
-    subject_lower = subject.lower()
-    if 'maquipo' in subject_lower:
+    # Normalizar quitando tildes y pasando a minúsculas
+    subject_clean = unicodedata.normalize('NFD', subject or '')
+    subject_clean = ''.join(c for c in subject_clean if unicodedata.category(c) != 'Mn').lower()
+    
+    if 'maquipo' in subject_clean:
         return 'MAQUIPOS'
-    elif 'vesa' in subject_lower or 'besa' in subject_lower:
+    elif 'vesa' in subject_clean or 'besa' in subject_clean:
         return 'VESA'
-    elif 'colaborador' in subject_lower or 'cobrador' in subject_lower:
+    elif 'colaborador' in subject_clean or 'cobrador' in subject_clean:
         return 'Cobradores'
+    elif 'mauto' in subject_clean or 'mantenimiento automotriz' in subject_clean:
+        return 'Mauto'
+    elif re.search(r'(?:mr\.?\s*credit|mister\s*credit)', subject_clean):
+        return 'MR. Credit'
     return 'CANELLA'
 
 def sanitize_filename(filename):

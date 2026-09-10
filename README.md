@@ -13,7 +13,7 @@ El sistema también incluye un **Dashboard Web en tiempo real** (construido con 
 * **Recepción por Correo Electrónico:** 
   * Se conecta vía IMAP a Gmail.
   * Busca correos no leídos que contengan palabras clave (`corte`, `cuadre`).
-  * Extrae dinámicamente la **fecha** y la **empresa** (Maquipos, VESA, Canella, Cobradores) desde el asunto.
+  * Extrae dinámicamente la **fecha** y la **empresa** (Maquipos, VESA, Canella, Cobradores, Mauto, MR. Credit) desde el asunto.
   * Descarga los adjuntos permitidos (PDF y Excel) y los guarda en la ruta de red correspondiente.
   * Responde automáticamente con un correo de confirmación de éxito.
 

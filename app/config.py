@@ -23,13 +23,12 @@ class Config:
     TENANT_ID = os.getenv('TENANT_ID')
     CLIENT_ID = os.getenv('CLIENT_ID')
     AUTH_MODE = os.getenv('AUTH_MODE', 'delegated')
-    ACCOUNT_USERNAME = os.getenv('ACCOUNT_USERNAME', 'rcruz@canella.com.gt')
+    ACCOUNT_USERNAME = os.getenv('ACCOUNT_USERNAME')
     
     # Tiempo de espera entre lecturas (en segundos, ej: 60 = 1 minuto)
     EMAIL_CHECK_INTERVAL = 60
 
     @staticmethod
     def init_app():
-        # Nos aseguramos de que el directorio base de destino exista
-        os.makedirs(Config.SOURCE_DIR, exist_ok=True)
+        # Nos aseguramos de que el directorio base de origen exista
         os.makedirs(Config.SOURCE_DIR, exist_ok=True)
