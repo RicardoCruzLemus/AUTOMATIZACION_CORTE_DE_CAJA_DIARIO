@@ -174,8 +174,10 @@ def enviar_rechazo(msg, errores):
     <head>
         <meta charset="UTF-8">
     </head>
-    <body style="background-color: #f4f7f6; padding: 15px; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-    <div style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 25px rgba(0,0,0,0.1); color: #333; line-height: 1.6;">
+    <body style="background-color: #1e1e1e; padding: 15px; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <table width="480" align="center" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 25px rgba(0,0,0,0.1); color: #333; line-height: 1.6;">
+        <tr>
+            <td style="padding: 0;">
         
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%); color: white; padding: 30px 20px; text-align: center;">
@@ -234,7 +236,9 @@ def enviar_rechazo(msg, errores):
             <p style="margin: 5px 0 0 0;"><strong>No respondas a este correo.</strong></p>
         </div>
         
-    </div>
+            </td>
+        </tr>
+    </table>
     </body>
     </html>
     """
