@@ -143,8 +143,14 @@ def validar_asunto(subject):
         return False, "<b>Error en el Asunto:</b> No se detectó ninguna palabra clave válida (ej. 'Corte de Caja', 'Cuadre')."
         
     # 2. Buscar fecha en cualquier lugar del asunto
-    if not extract_date(subject):
+    date_str = extract_date(subject)
+    if not date_str:
         return False, "<b>Error en el Asunto:</b> No se encontró una fecha válida (DD/MM/YYYY) en el texto del asunto."
+        
+    # 3. Validar que el año no sea antiguo (2025 hacia atrás)
+    year = int(date_str.split('-')[2])
+    if year <= 2025:
+        return False, f"<b>Error en el Asunto:</b> La fecha ingresada ({date_str}) contiene un año antiguo ({year}). Por favor verifica que el año sea correcto (ej. 2026 en adelante)."
         
     return True, ""
 
