@@ -222,8 +222,13 @@ def enviar_rechazo(msg, errores):
                 </div>
 
                 <h4 style="margin-top: 25px; color: #0f172a; font-size: 15px; border-left: 3px solid #3b82f6; padding-left: 10px;">2. Formato de Archivos (PDF o Excel)</h4>
-                <div style="background: #ffffff; padding: 10px; border: 1px dashed #cbd5e1; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; color: #334155; margin-top: 10px; word-break: break-word;">
-                    &bull; {today_compact}-ABC-[Tipo de Documento].xlsx<br><br>
+                <div style="background: #ffffff; padding: 10px; border: 1px dashed #cbd5e1; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; color: #334155; margin-top: 10px; word-break: break-word; line-height: 1.6;">
+                    <span style="color: #64748b; font-size: 12px; font-family: 'Segoe UI', sans-serif; font-style: italic;">Formato general:</span><br>
+                    &bull; {today_compact}-[Nomenclatura de la Empresa]-[Tipo de Documento].xlsx<br>
+                    &bull; {today_compact}-[Nomenclatura de la Empresa]-[Tipo de Documento].pdf<br><br>
+                    
+                    <span style="color: #64748b; font-size: 12px; font-family: 'Segoe UI', sans-serif; font-style: italic;">Ejemplos si la nomenclatura fuera "ABC":</span><br>
+                    &bull; {today_compact}-ABC-[Tipo de Documento].xlsx<br>
                     &bull; {today_compact}-ABC-[Tipo de Documento].pdf
                 </div>
             </div>
