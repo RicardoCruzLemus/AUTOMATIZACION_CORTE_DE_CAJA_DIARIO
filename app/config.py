@@ -19,11 +19,10 @@ class Config:
     # Recurso base para autenticacion
     IPC_SHARE = os.getenv('IPC_SHARE', r'')
 
-    # Configuraciones de Email (Microsoft Graph API - OAUTH2)
-    TENANT_ID = os.getenv('TENANT_ID')
-    CLIENT_ID = os.getenv('CLIENT_ID')
-    AUTH_MODE = os.getenv('AUTH_MODE', 'delegated')
-    ACCOUNT_USERNAME = os.getenv('ACCOUNT_USERNAME')
+    # Configuraciones de Email (Exchange Web Services - OWA)
+    EXCHANGE_EMAIL = os.getenv('EXCHANGE_EMAIL')
+    EXCHANGE_PASSWORD = os.getenv('EXCHANGE_PASSWORD')
+    EXCHANGE_SERVER = os.getenv('EXCHANGE_SERVER')
     
     # Tiempo de espera entre lecturas (en segundos, ej: 60 = 1 minuto)
     EMAIL_CHECK_INTERVAL = 60

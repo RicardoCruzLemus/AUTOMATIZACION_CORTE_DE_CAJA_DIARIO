@@ -10,8 +10,14 @@ from watchdog.events import FileSystemEventHandler
 
 from app.config import Config
 
+import threading
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 LOG_FILE = 'transfer_logs.json'
+REJECTED_LOG_FILE = 'rejected_logs.json'
+
+log_lock = threading.Lock()
+rejected_lock = threading.Lock()
 
 def append_log(filename, status, message, destino='', asunto=''):
     log_entry = {
@@ -22,16 +28,36 @@ def append_log(filename, status, message, destino='', asunto=''):
         'destino': destino,
         'asunto': asunto
     }
-    logs = []
-    if os.path.exists(LOG_FILE):
-        try:
-            with open(LOG_FILE, 'r', encoding='utf-8') as f:
-                logs = json.load(f)
-        except Exception:
-            pass
-    logs.insert(0, log_entry)  # Add to beginning
-    with open(LOG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(logs, f, indent=4)  # Sin limite de logs
+    with log_lock:
+        logs = []
+        if os.path.exists(LOG_FILE):
+            try:
+                with open(LOG_FILE, 'r', encoding='utf-8') as f:
+                    logs = json.load(f)
+            except Exception:
+                pass
+        logs.insert(0, log_entry)  # Add to beginning
+        with open(LOG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(logs, f, indent=4)
+
+def append_rejected_log(asunto, motivo, archivos):
+    log_entry = {
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'asunto': asunto,
+        'motivo': motivo,
+        'archivos': archivos
+    }
+    with rejected_lock:
+        logs = []
+        if os.path.exists(REJECTED_LOG_FILE):
+            try:
+                with open(REJECTED_LOG_FILE, 'r', encoding='utf-8') as f:
+                    logs = json.load(f)
+            except Exception:
+                pass
+        logs.insert(0, log_entry)
+        with open(REJECTED_LOG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(logs, f, indent=4)
 
 def get_unique_filename(destination_dir, filename):
     base, ext = os.path.splitext(filename)

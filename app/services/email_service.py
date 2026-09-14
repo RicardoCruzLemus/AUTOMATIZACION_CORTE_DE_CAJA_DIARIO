@@ -5,21 +5,22 @@ import re
 import json
 import base64
 import unicodedata
+import threading
 from datetime import datetime, timedelta
-import msal
-import requests
 from pathlib import Path
+
+from exchangelib import Credentials, Account, Configuration, DELEGATE, HTMLBody
+from exchangelib.ewsdatetime import EWSDateTime, EWSTimeZone
+from exchangelib.attachments import FileAttachment
+
 from app.config import Config
-from app.services.watcher import authenticate, append_log
+from app.services.watcher import authenticate, append_log, append_rejected_log
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-# Ruta absoluta para el archivo de correos procesados y token de MSAL
+# Ruta absoluta para el archivo de correos procesados y watermark
 PROCESADOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'correos_procesados.json')
-TOKEN_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.token_cache.json')
-
-GRAPH_URL = "https://graph.microsoft.com/v1.0"
-SCOPES_DELEGADOS = ["Mail.Read"] # Se redujo de ReadWrite a Read para evitar el bloqueo del Administrador
+WATERMARK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'watermark.json')
 
 MONTHS = {
     '01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
@@ -27,127 +28,52 @@ MONTHS = {
     '09': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre'
 }
 
-# ==========================================
-# CLASES PARA OAUTH2 Y MICROSOFT GRAPH API
-# ==========================================
-class Autenticador:
-    def __init__(self, tenant, client_id, usuario_esperado):
-        self.authority = f"https://login.microsoftonline.com/{tenant}"
-        self.usuario_esperado = (usuario_esperado or "").strip().lower() or None
-        self.archivo_cache = Path(TOKEN_CACHE_FILE)
-        
-        self.cache = msal.SerializableTokenCache()
-        if self.archivo_cache.exists():
-            self.cache.deserialize(self.archivo_cache.read_text(encoding="utf-8"))
-            
-        self.app = msal.PublicClientApplication(
-            client_id, authority=self.authority, token_cache=self.cache)
-
-    def _guardar_cache(self):
-        if self.cache.has_state_changed:
-            self.archivo_cache.write_text(self.cache.serialize(), encoding="utf-8")
-
-    def obtener_token(self):
-        cuentas = self.app.get_accounts()
-        cuenta = None
-        if self.usuario_esperado and cuentas:
-            for c in cuentas:
-                if (c.get("username") or "").lower() == self.usuario_esperado:
-                    cuenta = c
-                    break
-        elif cuentas:
-            cuenta = cuentas[0]
-            
-        resultado = None
-        if cuenta:
-            # Intento de login silencioso con token guardado
-            resultado = self.app.acquire_token_silent(SCOPES_DELEGADOS, account=cuenta)
-            
-        if not resultado:
-            # Flujo de Dispositivo (Device Code Flow) - Pide login interactivo en navegador
-            flujo = self.app.initiate_device_flow(scopes=SCOPES_DELEGADOS)
-            if "user_code" not in flujo:
-                raise Exception(f"No se pudo iniciar device code flow: {flujo}")
-            logging.warning("\n" + "=" * 70)
-            logging.warning(">>> AUTENTICACION REQUERIDA (OAUTH2) <<<")
-            logging.warning(flujo["message"])
-            if self.usuario_esperado:
-                logging.warning(f"    Inicia sesion con: {self.usuario_esperado}")
-            logging.warning("=" * 70 + "\n")
-            resultado = self.app.acquire_token_by_device_flow(flujo)
-            
-        self._guardar_cache()
-        if "access_token" not in resultado:
-            raise Exception(f"Fallo de autenticacion: {resultado.get('error_description', resultado)}")
-            
-        return resultado["access_token"]
-
-
-class ClienteGraph:
-    def __init__(self, token):
-        self.token = token
-        self.base = f"{GRAPH_URL}/me"
-        self.sesion = requests.Session()
-        self.sesion.headers.update({
-            "Authorization": f"Bearer {self.token}",
-            "Accept": "application/json"
-        })
-
-    def get(self, endpoint, params=None):
-        url = f"{self.base}{endpoint}"
-        r = self.sesion.get(url, params=params, timeout=30)
-        r.raise_for_status()
-        return r.json()
-        
-    def patch(self, endpoint, json_data):
-        url = f"{self.base}{endpoint}"
-        r = self.sesion.patch(url, json=json_data, timeout=30)
-        r.raise_for_status()
-        return r.json()
-# ==========================================
-
+procesados_lock = threading.Lock()
+watermark_lock = threading.Lock()
 
 def load_procesados():
-    if os.path.exists(PROCESADOS_FILE):
-        try:
-            with open(PROCESADOS_FILE, 'r') as f:
-                return set(json.load(f))
-        except Exception:
-            return set()
-    return set()
+    with procesados_lock:
+        if os.path.exists(PROCESADOS_FILE):
+            try:
+                with open(PROCESADOS_FILE, 'r') as f:
+                    return set(json.load(f))
+            except Exception:
+                return set()
+        return set()
 
 def save_procesado(msg_id):
-    procesados = load_procesados()
-    if msg_id and msg_id not in procesados:
-        procesados.add(msg_id)
-        with open(PROCESADOS_FILE, 'w') as f:
-            json.dump(list(procesados), f)
-
-# ==========================================
-# MARCA DE AGUA (HIGH WATERMARK)
-# Guarda el receivedDateTime del correo más reciente visto.
-# En cada ciclo solo se piden correos DESPUES de este momento.
-# Esto elimina la necesidad de una ventana de días fija.
-# ==========================================
-WATERMARK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'watermark.json')
+    if not msg_id: return
+    with procesados_lock:
+        procesados = set()
+        if os.path.exists(PROCESADOS_FILE):
+            try:
+                with open(PROCESADOS_FILE, 'r') as f:
+                    procesados = set(json.load(f))
+            except Exception:
+                pass
+        if msg_id not in procesados:
+            procesados.add(msg_id)
+            with open(PROCESADOS_FILE, 'w') as f:
+                json.dump(list(procesados), f)
 
 def load_watermark():
-    """Carga la fecha del último correo procesado. Si no existe, usa hace 2 días como inicio seguro."""
-    if os.path.exists(WATERMARK_FILE):
-        try:
-            with open(WATERMARK_FILE, 'r') as f:
-                data = json.load(f)
-                return data.get('last_seen', None)
-        except Exception:
-            pass
-    # Primera vez: arranca desde hace 2 dias para no perderse nada reciente
+    """Carga la fecha del último correo procesado en UTC. Si no existe, usa hace 2 días."""
+    with watermark_lock:
+        if os.path.exists(WATERMARK_FILE):
+            try:
+                with open(WATERMARK_FILE, 'r') as f:
+                    data = json.load(f)
+                    return data.get('last_seen', None)
+            except Exception:
+                pass
     fallback = (datetime.utcnow() - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
     return fallback
 
 def save_watermark(received_datetime_str):
     """Guarda la fecha del correo más reciente como nueva marca de agua."""
-    with open(WATERMARK_FILE, 'w') as f:
-        json.dump({'last_seen': received_datetime_str, 'updated': datetime.utcnow().isoformat()}, f)
+    with watermark_lock:
+        with open(WATERMARK_FILE, 'w') as f:
+            json.dump({'last_seen': received_datetime_str, 'updated': datetime.utcnow().isoformat()}, f)
 
 def extract_date(subject):
     match = re.search(r'(\d{2})[/\-\.](\d{2})[/\-\.](\d{2,4})', subject)
@@ -167,7 +93,6 @@ def extract_date(subject):
     return None
 
 def extract_company(subject):
-    # Normalizar quitando tildes y pasando a minúsculas
     subject_clean = unicodedata.normalize('NFD', subject or '')
     subject_clean = ''.join(c for c in subject_clean if unicodedata.category(c) != 'Mn').lower()
     
@@ -197,34 +122,140 @@ def get_unique_filename(destination_dir, filename):
         
     return new_filename
 
+def get_exchange_account():
+    username = "automatizacionescaja"
+    credentials = Credentials(username, Config.EXCHANGE_PASSWORD)
+    config = Configuration(server=Config.EXCHANGE_SERVER, credentials=credentials)
+    account = Account(primary_smtp_address=Config.EXCHANGE_EMAIL, config=config, autodiscover=False, access_type=DELEGATE)
+    return account
+
+# === NUEVAS FUNCIONES DE VALIDACION ===
+def validar_asunto(subject):
+    if not subject:
+        return False, "El asunto está completamente vacío."
+    
+    # 1. Buscar palabra clave (case-insensitive, ignora tildes)
+    keywords = ['corte', 'cuadre', 'caja', 'cort', 'cuadr', 'cadre', 'crte']
+    subject_clean = unicodedata.normalize('NFD', subject.lower())
+    has_keyword = any(word in subject_clean for word in keywords)
+    
+    if not has_keyword:
+        return False, "El asunto no contiene palabras clave válidas (ej. 'Corte', 'Cuadre', 'Caja')."
+        
+    # 2. Buscar fecha en cualquier lugar del asunto
+    if not extract_date(subject):
+        return False, "No se encontró una fecha válida (DD/MM/YYYY o DD-MM-YYYY) en el asunto."
+        
+    return True, ""
+
+def validar_nombre_archivo(filename):
+    if not filename:
+        return False
+    name, ext = os.path.splitext(filename)
+    # 1. Validar extensión permitida (Parámetro 4)
+    if ext.lower() not in ['.pdf', '.xls', '.xlsx', '.xlsm']:
+        return False
+    # 2. Validar formato con al menos 2 guiones: PARTE1 - PARTE2 - PARTE3 (Parámetro 3)
+    parts = name.split('-')
+    if len(parts) < 3:
+        return False
+    return True
+
+def enviar_rechazo(msg, errores):
+    lista_errores = "".join(f"<li style='margin-bottom: 5px;'>{e}</li>" for e in errores)
+    cuerpo_html = f"""
+    <html>
+    <body>
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 750px; margin: 0 auto; color: #333; line-height: 1.6; border: 1px solid #e1e4e8; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <div style="background-color: #d32f2f; color: white; padding: 20px; text-align: center;">
+            <h2 style="margin: 0; font-size: 24px; font-weight: 600;">&#9888;&#65039; Aviso de Rechazo de Corte de Caja</h2>
+        </div>
+        
+        <div style="padding: 30px;">
+            <p style="font-size: 16px;">Buen d&iacute;a,</p>
+            <p style="font-size: 16px;">El sistema autom&aacute;tico ha detectado que el correo con asunto <strong>"{msg.subject}"</strong> no cumple con los est&aacute;ndares establecidos y <strong>no ha podido ser procesado</strong>.</p>
+            
+            <div style="background-color: #ffebee; border-left: 4px solid #f44336; padding: 15px; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #d32f2f; font-size: 18px;">Motivo(s) del rechazo:</h3>
+                <ul style="margin-bottom: 0; color: #b71c1c; font-weight: 500; font-size: 15px;">
+                    {lista_errores}
+                </ul>
+            </div>
+
+            <h3 style="color: #1976d2; border-bottom: 2px solid #bbdefb; padding-bottom: 8px; margin-top: 30px;">&#128203; Lineamientos Correctos</h3>
+            <p>Por favor, revisa y corrige tu env&iacute;o bas&aacute;ndote en los siguientes par&aacute;metros oficiales:</p>
+            
+            <div style="background-color: #f5f7fa; border: 1px solid #e0e6ed; padding: 20px; border-radius: 6px; margin-bottom: 20px;">
+                <h4 style="margin-top: 0; color: #2c3e50; font-size: 16px;">1. Formato del Asunto (Env&iacute;o Normal)</h4>
+                <p style="margin-top: 5px; font-size: 14px;">Debe contener la palabra clave y la fecha en formato DD/MM/YYYY. Te sugerimos la siguiente estructura:</p>
+                <ul style="font-family: monospace; background: white; padding: 10px 10px 10px 30px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; list-style-type: square;">
+                    <li style="margin-bottom: 4px;">Corte de Caja, Canella, 03/09/2025</li>
+                    <li style="margin-bottom: 4px;">Corte de Caja, Vesa, 03/09/2025</li>
+                    <li style="margin-bottom: 4px;">Corte de Caja, Maquipos, 03/09/2025</li>
+                    <li style="margin-bottom: 4px;">Corte de Caja, Cobradores, 03/09/2025</li>
+                    <li style="margin-bottom: 4px;">Corte de Caja, Mister Credit, 03/09/2026</li>
+                    <li>Corte de Caja, Mauto, 03/09/2026</li>
+                </ul>
+
+                <h4 style="margin-top: 25px; color: #2c3e50; font-size: 16px;">2. Formato del Asunto (Para Correcciones)</h4>
+                <p style="margin-top: 5px; font-size: 14px;">Si est&aacute;s enviando una correcci&oacute;n, debes agregar la palabra "Correcci&oacute;n" al final:</p>
+                <ul style="font-family: monospace; background: white; padding: 10px 10px 10px 30px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; list-style-type: square;">
+                    <li style="margin-bottom: 4px;">Corte de Caja, Canella, 03/09/2025 Correcci&oacute;n</li>
+                    <li style="margin-bottom: 4px;">Corte de Caja, Vesa, 03/09/2025 Correcci&oacute;n</li>
+                    <li style="margin-bottom: 4px;">Corte de Caja, Maquipos, 03/09/2025 Correcci&oacute;n</li>
+                    <li style="margin-bottom: 4px;">Corte de Caja, Cobradores, 03/09/2025 Correcci&oacute;n</li>
+                    <li style="margin-bottom: 4px;">Corte de Caja, Mister Credit, 03/09/2026 Correcci&oacute;n</li>
+                    <li>Corte de Caja, Mauto, 03/09/2026 Correcci&oacute;n</li>
+                </ul>
+
+                <h4 style="margin-top: 25px; color: #2c3e50; font-size: 16px;">3. Nomenclatura de Archivos Adjuntos (PDF o Excel)</h4>
+                <p style="margin-top: 5px; font-size: 14px;">El nombre del archivo debe estar separado por guiones (<code>-</code>) siguiendo este orden: <strong>Fecha - Nomenclatura Tienda - Nombre del documento</strong>.</p>
+                <ul style="font-family: monospace; background: white; padding: 10px 10px 10px 30px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; list-style-type: square;">
+                    <li style="margin-bottom: 4px;">31072026-ABC-CORTE EXCEL.xlsx</li>
+                    <li>31072026-ABC-CORTE SAP.pdf</li>
+                </ul>
+            </div>
+            
+            <p style="font-size: 15px; font-weight: 600; text-align: center; color: #e65100; padding: 15px; background: #fff3e0; border-radius: 6px;">
+                Por favor, vuelve a enviar un NUEVO CORREO cumpliendo estrictamente estos par&aacute;metros para que tu corte sea registrado.
+            </p>
+        </div>
+        
+        <div style="background-color: #f1f1f1; color: #777; font-size: 12px; text-align: center; padding: 15px; border-top: 1px solid #ddd;">
+            <em>Este es un mensaje autom&aacute;tico generado por el Sistema de Automatizaci&oacute;n de Cortes de Caja.<br>Por favor, no respondas a esta direcci&oacute;n.</em>
+        </div>
+    </div>
+    </body>
+    </html>
+    """
+    try:
+        msg.reply_all(
+            subject=f"RECHAZADO: Formato incorrecto en tu corte de caja",
+            body=HTMLBody(cuerpo_html)
+        )
+        logging.info(f"Correo de rechazo enviado automáticamente para: {msg.subject}")
+    except Exception as e:
+        logging.error(f"No se pudo enviar correo de rechazo: {str(e)}")
+
+# =======================================
+
 def check_emails():
-    # Validacion: No arrancar conexión si falta Configuración de TI
-    if not Config.TENANT_ID or not Config.CLIENT_ID or "00000000" in Config.TENANT_ID:
-        logging.warning("Esperando a que TI proporcione CLIENT_ID y TENANT_ID reales en el archivo .env...")
+    if not Config.EXCHANGE_EMAIL or not Config.EXCHANGE_PASSWORD:
+        logging.warning("Faltan credenciales de Exchange en el archivo .env...")
         return
         
     try:
-        logging.info("Verificando sesion OAuth2 de Microsoft Graph...")
-        auth = Autenticador(Config.TENANT_ID, Config.CLIENT_ID, Config.ACCOUNT_USERNAME)
-        token = auth.obtener_token()
-        graph = ClienteGraph(token)
+        logging.info("Conectando al servidor OWA local (EWS)...")
+        account = get_exchange_account()
         
-        # MARCA DE AGUA: solo pedimos correos NUEVOS desde la ultima vez que revisamos
-        # Esto garantiza que la consulta siempre devuelva pocos correos (solo los nuevos)
-        # sin importar cuantos correos historicos tenga la bandeja
         watermark = load_watermark()
-        # Buffer de 2 minutos para atrapar correos que llegan ligeramente fuera de orden
+        # Parse UTC watermark to EWSDateTime
+        tz = EWSTimeZone('UTC')
         watermark_dt = datetime.strptime(watermark, '%Y-%m-%dT%H:%M:%SZ') - timedelta(minutes=2)
-        desde = watermark_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+        ews_desde = EWSDateTime.from_datetime(watermark_dt.replace(tzinfo=tz))
         
-        params = {
-            "$select": "id,internetMessageId,subject,receivedDateTime,hasAttachments",
-            "$orderby": "receivedDateTime asc",  # Mas antiguo primero para avanzar la marca en orden
-            "$top": "50",  # 50 es mas que suficiente para un ciclo de 60 segundos
-            "$filter": f"receivedDateTime ge {desde}"
-        }
-        resp = graph.get("/mailFolders/inbox/messages", params=params)
-        correos = resp.get("value", [])
+        # Filtrar correos desde la marca de agua
+        correos = list(account.inbox.filter(datetime_received__gte=ews_desde).order_by('datetime_received')[:50])
         
         if not correos:
             logging.info("Bandeja revisada. No hay correos nuevos.")
@@ -235,10 +266,9 @@ def check_emails():
         omitidos = 0
         
         for msg in correos:
-            msg_id = msg.get("internetMessageId")
-            graph_id = msg.get("id")
-            subject = msg.get("subject", "")
-            has_attachments = msg.get("hasAttachments", False)
+            msg_id = msg.message_id
+            subject = msg.subject or "Sin asunto"
+            has_attachments = msg.has_attachments
             
             if msg_id in procesados:
                 omitidos += 1
@@ -247,99 +277,117 @@ def check_emails():
             nuevos += 1
             logging.info(f"Leyendo correo: {subject}")
             
-            keywords = ['corte', 'cuadre', 'caja', 'cort', 'cuadr', 'cadre', 'crte']
-            if not any(word in subject.lower() for word in keywords):
-                logging.warning(f"Asunto sin palabra clave: {subject}. Ignorando.")
-                if msg_id: save_procesado(msg_id)
-                # Ya no podemos marcar como leido por falta de permisos (Mail.ReadWrite)
-                continue
-                
+            # --- INCIO DE VALIDACIONES ESTRICTAS ---
+            errores = []
+            
+            # Validación 1: Asunto (Flexible - solo busca fecha y palabra clave)
+            es_valido, msj_error = validar_asunto(subject)
+            if not es_valido:
+                errores.append(msj_error)
+            
+            # Extraemos la fecha y empresa
             date_str = extract_date(subject)
             company = extract_company(subject)
             
-            if not date_str:
-                logging.warning(f"No se encontro fecha valida en el asunto: {subject}. Saltando adjuntos.")
-                if msg_id: save_procesado(msg_id)
-                continue
-                
+            # Validación 2: Archivos adjuntos y sus nombres
+            archivos_a_procesar = []
             if not has_attachments:
-                logging.warning(f"El correo {subject} no tiene adjuntos. Ignorando.")
+                errores.append("El correo <strong>no contiene archivos adjuntos</strong>.")
+            else:
+                archivos_validos = False
+                for att in msg.attachments:
+                    if isinstance(att, FileAttachment):
+                        # Ignorar imagenes comunes de firmas (inline attachments)
+                        ext = os.path.splitext(att.name or "")[1].lower()
+                        if ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg']:
+                            continue # Ignorar silenciosamente las imágenes
+                            
+                        if not validar_nombre_archivo(att.name):
+                            errores.append(
+                                f"El archivo <strong>'{att.name}'</strong> no cumple el formato requerido de guiones o la extensión no es Excel/PDF."
+                            )
+                        else:
+                            archivos_validos = True
+                            archivos_a_procesar.append(att)
+                
+                if not archivos_validos and not [e for e in errores if "archivo" in e.lower()]:
+                    errores.append("No se encontró ningún archivo físico válido (PDF o Excel).")
+                    
+            # Si hay errores de validación, rechazamos el correo y NO guardamos nada en red
+            if errores:
+                logging.warning(f"Correo '{subject}' RECHAZADO por validaciones. Enviando alerta a caja...")
+                
+                # Nombres de archivos adjuntos (para el log visual en dashboard)
+                nombres_archivos = [att.name for att in getattr(msg, 'attachments', []) if isinstance(att, FileAttachment)]
+                motivo_limpio = " / ".join(errores).replace("<strong>", "").replace("</strong>", "")
+                append_rejected_log(subject, motivo_limpio, nombres_archivos)
+                
+                enviar_rechazo(msg, errores)
                 if msg_id: save_procesado(msg_id)
                 continue
-                
-            # Autenticar red local
+            
+            # --- FIN DE VALIDACIONES ESTRICTAS ---
+            
+            # Si llegó aquí, significa que todo es válido y procedemos a guardar en red
             try:
                 authenticate()
             except Exception as e:
                 logging.error(f"Error de autenticacion con el servidor local para guardar adjuntos: {str(e)}")
                 continue
                 
-            # 2. Descargar adjuntos vía Graph API
-            adjuntos_resp = graph.get(f"/messages/{graph_id}/attachments")
-            adjuntos = adjuntos_resp.get("value", [])
+            has_error = False
             
-            if msg_id: save_procesado(msg_id)
-            
-            for att in adjuntos:
-                # Solo queremos adjuntos de archivos físicos
-                if att.get("@odata.type") != "#microsoft.graph.fileAttachment":
+            for att in archivos_a_procesar:
+                filename = att.name
+                content_bytes = att.content
+                
+                if not content_bytes:
                     continue
                     
-                subject = msg.get("subject", "Sin asunto")
-                filename = att.get("name", "")
-                content_bytes = att.get("contentBytes", "")
-                
                 filename = sanitize_filename(filename)
                 
-                if filename.lower().endswith(('.pdf', '.xls', '.xlsx', '.xlsm')):
-                    day, month, year = date_str.split('-')
-                    month_name = MONTHS.get(month, month)
-                    
-                    dest_folder = os.path.join(Config.DEST_DIR, company, year, month_name, date_str)
-                    os.makedirs(dest_folder, exist_ok=True)
-                    
-                    unique_filename = get_unique_filename(dest_folder, filename)
-                    filepath = os.path.join(dest_folder, unique_filename)
-                    
-                    try:
-                        # Decodificar el archivo que viene en Base64 desde Microsoft
-                        with open(filepath, 'wb') as f:
-                            f.write(base64.b64decode(content_bytes))
-                            
-                        msg_log = f"Guardado desde correo (Graph) como {unique_filename} en {company}/{year}/{month_name}/{date_str}"
-                        logging.info(msg_log)
-                        append_log(filename, "EXITO", msg_log, destino=dest_folder, asunto=subject)
-                    except Exception as e:
-                        msg_log = f"Error al guardar adjunto en el servidor local: {str(e)}"
-                        logging.error(msg_log)
-                        append_log(filename, "ERROR", msg_log, asunto=subject)
-                else:
-                    msg_log = f"Archivo ignorado por extension no permitida en {company}/{date_str}"
-                    logging.info(f"[{filename}] {msg_log}")
-                    append_log(filename, "IGNORADO", msg_log, asunto=subject)
+                day, month, year = date_str.split('-')
+                month_name = MONTHS.get(month, month)
+                
+                dest_folder = os.path.join(Config.DEST_DIR, company, year, month_name, date_str)
+                os.makedirs(dest_folder, exist_ok=True)
+                
+                unique_filename = get_unique_filename(dest_folder, filename)
+                filepath = os.path.join(dest_folder, unique_filename)
+                
+                try:
+                    with open(filepath, 'wb') as f:
+                        f.write(content_bytes)
+                        
+                    msg_log = f"Guardado desde correo (EWS) como {unique_filename} en {company}/{year}/{month_name}/{date_str}"
+                    logging.info(msg_log)
+                    append_log(filename, "EXITO", msg_log, destino=dest_folder, asunto=subject)
+                except Exception as e:
+                    msg_log = f"Error al guardar adjunto en el servidor local: {str(e)}"
+                    logging.error(msg_log)
+                    append_log(filename, "ERROR", msg_log, asunto=subject)
+                    has_error = True
 
-        # Actualizar la marca de agua al correo mas reciente del ciclo
+            if not has_error and msg_id:
+                save_procesado(msg_id)
+
+        # Actualizar la marca de agua
         if correos:
-            ultima_fecha = correos[-1].get("receivedDateTime")  # El mas reciente (asc)
+            ultima_fecha = correos[-1].datetime_received
             if ultima_fecha:
-                # Normalizar formato: '2026-09-04T20:18:01Z' o '2026-09-04T20:18:01+00:00'
-                ultima_fecha_utc = ultima_fecha.replace('+00:00', 'Z').split('.')[0]
-                if not ultima_fecha_utc.endswith('Z'):
-                    ultima_fecha_utc += 'Z'
+                ultima_fecha_utc = ultima_fecha.astimezone(EWSTimeZone('UTC')).strftime('%Y-%m-%dT%H:%M:%SZ')
                 save_watermark(ultima_fecha_utc)
 
         if nuevos == 0 and omitidos > 0:
             logging.info(f"Bandeja revisada. Se omitieron {omitidos} correos ya procesados. Esperando nuevos correos...")
-        elif nuevos == 0 and omitidos == 0:
-            logging.info("Bandeja revisada. No hay correos nuevos.")
         elif nuevos > 0:
             logging.info(f"Bandeja revisada. {nuevos} nuevos analizados, {omitidos} omitidos.")
 
     except Exception as e:
-        logging.error(f"Error en el servicio de correos Microsoft Graph: {str(e)}", exc_info=True)
+        logging.error(f"Error en el servicio de correos EWS: {str(e)}", exc_info=True)
 
 def start_email_service():
-    logging.info("Servicio de Correos (OAUTH2) iniciado.")
+    logging.info("Servicio de Correos (EWS) iniciado con Validación Estricta.")
     while True:
         check_emails()
         time.sleep(Config.EMAIL_CHECK_INTERVAL)

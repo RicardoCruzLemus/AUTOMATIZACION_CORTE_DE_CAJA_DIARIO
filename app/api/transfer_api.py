@@ -16,3 +16,16 @@ def get_logs():
         except Exception:
             pass
     return jsonify(logs)
+
+REJECTED_LOG_FILE = 'rejected_logs.json'
+
+@api_bp.route('/rejected_logs', methods=['GET'])
+def get_rejected_logs():
+    logs = []
+    if os.path.exists(REJECTED_LOG_FILE):
+        try:
+            with open(REJECTED_LOG_FILE, 'r', encoding='utf-8') as f:
+                logs = json.load(f)
+        except Exception:
+            pass
+    return jsonify(logs)

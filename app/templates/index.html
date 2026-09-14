@@ -338,11 +338,38 @@
                 <div class="pagination-buttons" id="pagination-buttons"></div>
             </div>
         </div>
+
+        <!-- Panel de Rechazados -->
+        <div class="status-card" style="margin-top: 2rem; border-color: rgba(239, 68, 68, 0.2);">
+            <div class="status-header">
+                <h2 style="color: var(--error);">⚠️ Correos y Archivos Rechazados</h2>
+                <div class="pulse-container">
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Registro de Alertas</span>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha / Hora</th>
+                        <th>Asunto del Correo</th>
+                        <th>Archivos Adjuntos</th>
+                        <th>Motivo del Rechazo</th>
+                    </tr>
+                </thead>
+                <tbody id="rejected-logs-body">
+                    <tr>
+                        <td colspan="4" class="empty-state">Cargando historial de rechazos...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
         let allLogs = [];
         let filteredLogs = [];
+        let rejectedLogs = [];
         let currentPage = 1;
         const PAGE_SIZE = 15;
 
@@ -353,6 +380,16 @@
                 applyFilters(false); // No resetear la pagina en auto-refresh
             } catch (error) {
                 console.error("Error fetching logs:", error);
+            }
+        }
+
+        async function fetchRejectedLogs() {
+            try {
+                const response = await fetch('/api/rejected_logs');
+                rejectedLogs = await response.json();
+                renderRejectedTable();
+            } catch (error) {
+                console.error("Error fetching rejected logs:", error);
             }
         }
 
@@ -458,9 +495,38 @@
             renderTable();
         }
 
+        function renderRejectedTable() {
+            const tbody = document.getElementById('rejected-logs-body');
+            if (!rejectedLogs || rejectedLogs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No hay correos rechazados. ¡Todo perfecto! 🎉</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            rejectedLogs.forEach(log => {
+                const archivosHTML = log.archivos && log.archivos.length > 0 
+                    ? log.archivos.map(a => `<div style="font-size: 0.85rem; padding: 3px 0; color: #cbd5e1;">📄 ${a}</div>`).join('') 
+                    : '<span style="color: var(--text-secondary); font-size:0.85rem;">Ninguno</span>';
+                    
+                const row = `
+                    <tr style="background-color: rgba(239, 68, 68, 0.02);">
+                        <td style="color: var(--text-secondary); vertical-align: top; white-space: nowrap;">${log.timestamp}</td>
+                        <td style="font-weight: 500; vertical-align: top;">${log.asunto || 'Sin asunto'}</td>
+                        <td style="vertical-align: top;">${archivosHTML}</td>
+                        <td style="color: var(--error); line-height: 1.4; vertical-align: top; font-size: 0.9rem;">${log.motivo}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
         // Carga inicial y auto-refresh
         fetchLogs();
-        setInterval(fetchLogs, 5000);
+        fetchRejectedLogs();
+        setInterval(() => {
+            fetchLogs();
+            fetchRejectedLogs();
+        }, 5000);
     </script>
 </body>
 </html>
