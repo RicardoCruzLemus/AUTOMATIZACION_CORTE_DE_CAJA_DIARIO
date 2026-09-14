@@ -42,7 +42,7 @@
 
         header {
             text-align: center;
-            margin-bottom: 3rem;
+            margin-bottom: 2rem;
             animation: fadeInDown 0.8s ease-out;
         }
 
@@ -61,6 +61,63 @@
             font-size: 1.1rem;
         }
 
+        /* ====== TABS ====== */
+        .tabs-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+            background: var(--glass-bg);
+            padding: 10px;
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(12px);
+            animation: fadeInDown 0.8s ease-out;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 14px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .tab-btn.active {
+            color: white;
+            background: rgba(56, 189, 248, 0.2);
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+        }
+
+        .tab-btn.active-error {
+            color: white;
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ====== STATUS CARD ====== */
         .status-card {
             background: var(--glass-bg);
             border: 1px solid var(--glass-border);
@@ -69,7 +126,6 @@
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-            animation: fadeInUp 0.8s ease-out;
         }
 
         .status-header {
@@ -291,82 +347,118 @@
             <p class="subtitle">Transferencia automatizada en tiempo real</p>
         </header>
 
-        <div class="status-card">
-            <div class="status-header">
-                <h2>Historial de Transferencias</h2>
-                <div class="pulse-container">
-                    <div class="pulse"></div>
-                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Monitor Activo</span>
+        <!-- Tabs Navigation -->
+        <div class="tabs-container">
+            <button class="tab-btn active" id="btn-exitos" onclick="switchTab('tab-exitos', this)">✅ Correos Procesados</button>
+            <button class="tab-btn" id="btn-rechazos" onclick="switchTab('tab-rechazos', this, true)">⚠️ Correos Rechazados</button>
+        </div>
+
+        <!-- Tab Content 1: Procesados -->
+        <div id="tab-exitos" class="tab-content active">
+            <div class="status-card">
+                <div class="status-header">
+                    <h2>Historial de Transferencias</h2>
+                    <div class="pulse-container">
+                        <div class="pulse"></div>
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">Monitor Activo</span>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Barra de Filtros -->
-            <div class="filters-bar">
-                <input type="text" id="filter-filename" placeholder="🔍 Buscar nombre de archivo..." oninput="applyFilters()">
-                <label>
-                    Desde
-                    <input type="date" id="filter-date-from" onchange="applyFilters()">
-                </label>
-                <label>
-                    Hasta
-                    <input type="date" id="filter-date-to" onchange="applyFilters()">
-                </label>
-                <button class="btn-clear" onclick="clearFilters()">✕ Limpiar</button>
-            </div>
+                <!-- Barra de Filtros -->
+                <div class="filters-bar">
+                    <input type="text" id="filter-filename" placeholder="🔍 Buscar nombre de archivo..." oninput="applyFilters()">
+                    <label>
+                        Desde
+                        <input type="date" id="filter-date-from" onchange="applyFilters()">
+                    </label>
+                    <label>
+                        Hasta
+                        <input type="date" id="filter-date-to" onchange="applyFilters()">
+                    </label>
+                    <button class="btn-clear" onclick="clearFilters()">✕ Limpiar</button>
+                </div>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>Fecha / Hora</th>
-                        <th>Archivo</th>
-                        <th>Estado</th>
-                        <th>Destino</th>
-                        <th>Asunto</th>
-                        <th>Detalle</th>
-                    </tr>
-                </thead>
-                <tbody id="logs-body">
-                    <tr>
-                        <td colspan="6" class="empty-state">Cargando registros...</td>
-                    </tr>
-                </tbody>
-            </table>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha / Hora</th>
+                            <th>Archivo</th>
+                            <th>Estado</th>
+                            <th>Destino</th>
+                            <th>Asunto</th>
+                            <th>Detalle</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-body">
+                        <tr>
+                            <td colspan="6" class="empty-state">Cargando registros...</td>
+                        </tr>
+                    </tbody>
+                </table>
 
-            <!-- Paginación -->
-            <div class="pagination-bar" id="pagination-bar" style="display: none;">
-                <span class="pagination-info" id="pagination-info"></span>
-                <div class="pagination-buttons" id="pagination-buttons"></div>
+                <!-- Paginación -->
+                <div class="pagination-bar" id="pagination-bar" style="display: none;">
+                    <span class="pagination-info" id="pagination-info"></span>
+                    <div class="pagination-buttons" id="pagination-buttons"></div>
+                </div>
             </div>
         </div>
 
-        <!-- Panel de Rechazados -->
-        <div class="status-card" style="margin-top: 2rem; border-color: rgba(239, 68, 68, 0.2);">
-            <div class="status-header">
-                <h2 style="color: var(--error);">⚠️ Correos y Archivos Rechazados</h2>
-                <div class="pulse-container">
-                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Registro de Alertas</span>
+        <!-- Tab Content 2: Rechazados -->
+        <div id="tab-rechazos" class="tab-content">
+            <div class="status-card" style="border-color: rgba(239, 68, 68, 0.2);">
+                <div class="status-header">
+                    <h2 style="color: var(--error);">Correos y Archivos Rechazados</h2>
+                    <div class="pulse-container">
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">Registro de Alertas</span>
+                    </div>
                 </div>
-            </div>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>Fecha / Hora</th>
-                        <th>Asunto del Correo</th>
-                        <th>Archivos Adjuntos</th>
-                        <th>Motivo del Rechazo</th>
-                    </tr>
-                </thead>
-                <tbody id="rejected-logs-body">
-                    <tr>
-                        <td colspan="4" class="empty-state">Cargando historial de rechazos...</td>
-                    </tr>
-                </tbody>
-            </table>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha / Hora</th>
+                            <th>Asunto del Correo</th>
+                            <th>Archivos Adjuntos</th>
+                            <th>Motivo del Rechazo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rejected-logs-body">
+                        <tr>
+                            <td colspan="4" class="empty-state">Cargando historial de rechazos...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
+
     </div>
 
     <script>
+        // === TABS LOGIC ===
+        function switchTab(tabId, btnElement, isError = false) {
+            // Hide all contents
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.remove('active');
+            });
+            // Remove active classes from all buttons
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('active');
+                el.classList.remove('active-error');
+            });
+
+            // Show selected content
+            document.getElementById(tabId).classList.add('active');
+            
+            // Add active class to clicked button
+            if (isError) {
+                btnElement.classList.add('active-error');
+            } else {
+                btnElement.classList.add('active');
+            }
+        }
+
+        // === DATA FETCHING ===
         let allLogs = [];
         let filteredLogs = [];
         let rejectedLogs = [];
