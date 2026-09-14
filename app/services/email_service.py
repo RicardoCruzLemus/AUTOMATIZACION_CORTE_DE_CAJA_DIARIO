@@ -194,6 +194,10 @@ def enviar_rechazo(msg, errores):
             <p style="font-size: 16px; margin-top: 0;">Estimado usuario,</p>
             <p style="font-size: 15px;">El sistema ha detectado que el correo con asunto <strong style="color: #000; background: #f0f0f0; padding: 3px 6px; border-radius: 4px; display: inline-block; margin-top: 5px; word-break: break-all;">"{msg.subject}"</strong> no cumple con los lineamientos corporativos.</p>
             
+            <div style="background-color: #fff3cd; color: #856404; padding: 12px 15px; border-left: 4px solid #ffeeba; border-radius: 4px; margin-top: 15px; font-size: 14px; font-weight: 600;">
+                [!] ACCIÓN REQUERIDA: Es obligatorio volver a enviar el correo de corte de caja con las correcciones correspondientes.
+            </div>
+            
             <!-- Error Box -->
             <div style="background-color: #fff8f8; border: 1px solid #ffcdd2; border-left: 5px solid #d32f2f; padding: 15px; margin: 25px 0; border-radius: 6px;">
                 <h3 style="margin-top: 0; color: #b71c1c; font-size: 16px; display: flex; align-items: center;">
