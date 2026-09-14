@@ -76,7 +76,7 @@ def save_watermark(received_datetime_str):
             json.dump({'last_seen': received_datetime_str, 'updated': datetime.utcnow().isoformat()}, f)
 
 def extract_date(subject):
-    match = re.search(r'(\d{2})[/\-\.](\d{2})[/\-\.](\d{2,4})', subject)
+    match = re.search(r'(\d{2})[/\-\.](\d{2})[/\-\.](\d{4}|\d{2})(?!\d)', subject)
     if match:
         day, month, year = match.groups()
         if len(year) == 2:
