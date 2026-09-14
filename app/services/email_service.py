@@ -147,17 +147,23 @@ def validar_asunto(subject):
     if not date_str:
         return False, "<b>Error en el Asunto:</b> No se encontró una fecha válida (DD/MM/YYYY) en el texto del asunto."
         
-    # 3. Validar que el año no sea antiguo (2025 hacia atrás)
+    # 3. Validar el año (incluyendo periodo de gracia de 45 días)
     year = int(date_str.split('-')[2])
-    current_year = datetime.now().year
+    now = datetime.now()
+    current_year = now.year
     
-    if year <= 2025:
-        return False, f"<b>Error en el Asunto:</b> La fecha ingresada ({date_str}) contiene un año antiguo ({year}). Por favor verifica que el año sea correcto (ej. {current_year})."
-    
-    # 4. Validar que el año no esté en el futuro
     if year > current_year:
         return False, f"<b>Error en el Asunto:</b> La fecha ingresada ({date_str}) contiene un año en el futuro ({year}). Por favor verifica que la fecha sea correcta."
         
+    if year < current_year - 1:
+        return False, f"<b>Error en el Asunto:</b> La fecha ingresada ({date_str}) contiene un año muy antiguo ({year}). Solo se acepta el año actual."
+        
+    if year == current_year - 1:
+        # Solo se permite el año anterior durante los primeros 45 días del año actual
+        day_of_year = now.timetuple().tm_yday
+        if day_of_year > 45:
+            return False, f"<b>Error en el Asunto:</b> Ya expiró el periodo de gracia de 45 días para procesar cortes del año pasado ({year})."
+            
     return True, ""
 
 def validar_nombre_archivo(filename):
