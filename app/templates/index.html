@@ -429,6 +429,12 @@
                         </tr>
                     </tbody>
                 </table>
+                
+                <!-- Paginación Rechazados -->
+                <div class="pagination-bar" id="rejected-pagination-bar" style="display: none;">
+                    <span class="pagination-info" id="rejected-pagination-info"></span>
+                    <div class="pagination-buttons" id="rejected-pagination-buttons"></div>
+                </div>
             </div>
         </div>
 
@@ -464,6 +470,8 @@
         let rejectedLogs = [];
         let currentPage = 1;
         const PAGE_SIZE = 15;
+        let rejectedCurrentPage = 1;
+        const REJECTED_PAGE_SIZE = 3;
 
         async function fetchLogs() {
             try {
@@ -589,13 +597,21 @@
 
         function renderRejectedTable() {
             const tbody = document.getElementById('rejected-logs-body');
+            const paginationBar = document.getElementById('rejected-pagination-bar');
+            
             if (!rejectedLogs || rejectedLogs.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No hay correos rechazados. ¡Todo perfecto! 🎉</td></tr>';
+                paginationBar.style.display = 'none';
                 return;
             }
 
+            const totalPages = Math.ceil(rejectedLogs.length / REJECTED_PAGE_SIZE);
+            const start = (rejectedCurrentPage - 1) * REJECTED_PAGE_SIZE;
+            const end = start + REJECTED_PAGE_SIZE;
+            const pageLogs = rejectedLogs.slice(start, end);
+
             tbody.innerHTML = '';
-            rejectedLogs.forEach(log => {
+            pageLogs.forEach(log => {
                 const archivosHTML = log.archivos && log.archivos.length > 0 
                     ? log.archivos.map(a => `<div style="font-size: 0.85rem; padding: 3px 0; color: #cbd5e1;">📄 ${a}</div>`).join('') 
                     : '<span style="color: var(--text-secondary); font-size:0.85rem;">Ninguno</span>';
@@ -610,6 +626,33 @@
                 `;
                 tbody.innerHTML += row;
             });
+            
+            // Renderizar paginación
+            paginationBar.style.display = 'flex';
+            document.getElementById('rejected-pagination-info').textContent = 
+                `Mostrando ${start + 1}-${Math.min(end, rejectedLogs.length)} de ${rejectedLogs.length} registros`;
+
+            let buttonsHTML = '';
+            buttonsHTML += `<button onclick="goToRejectedPage(${rejectedCurrentPage - 1})" ${rejectedCurrentPage === 1 ? 'disabled' : ''}>← Anterior</button>`;
+
+            let startPage = Math.max(1, rejectedCurrentPage - 2);
+            let endPage = Math.min(totalPages, startPage + 4);
+            if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+
+            for (let i = startPage; i <= endPage; i++) {
+                buttonsHTML += `<button onclick="goToRejectedPage(${i})" class="${i === rejectedCurrentPage ? 'active' : ''}">${i}</button>`;
+            }
+
+            buttonsHTML += `<button onclick="goToRejectedPage(${rejectedCurrentPage + 1})" ${rejectedCurrentPage === totalPages ? 'disabled' : ''}>Siguiente →</button>`;
+
+            document.getElementById('rejected-pagination-buttons').innerHTML = buttonsHTML;
+        }
+
+        function goToRejectedPage(page) {
+            const totalPages = Math.ceil(rejectedLogs.length / REJECTED_PAGE_SIZE);
+            if (page < 1 || page > totalPages) return;
+            rejectedCurrentPage = page;
+            renderRejectedTable();
         }
 
         // Carga inicial y auto-refresh
