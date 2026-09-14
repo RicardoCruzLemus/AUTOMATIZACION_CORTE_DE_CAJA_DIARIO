@@ -132,7 +132,7 @@ def get_exchange_account():
 # === NUEVAS FUNCIONES DE VALIDACION ===
 def validar_asunto(subject):
     if not subject:
-        return False, "El asunto está completamente vacío."
+        return False, "<b>Error en el Asunto:</b> El asunto está completamente vacío."
     
     # 1. Buscar palabra clave (case-insensitive, ignora tildes)
     keywords = ['corte', 'cuadre', 'caja', 'cort', 'cuadr', 'cadre', 'crte']
@@ -140,11 +140,11 @@ def validar_asunto(subject):
     has_keyword = any(word in subject_clean for word in keywords)
     
     if not has_keyword:
-        return False, "El asunto no contiene palabras clave válidas (ej. 'Corte', 'Cuadre', 'Caja')."
+        return False, "<b>Error en el Asunto:</b> No se detectó ninguna palabra clave válida (ej. 'Corte de Caja', 'Cuadre')."
         
     # 2. Buscar fecha en cualquier lugar del asunto
     if not extract_date(subject):
-        return False, "No se encontró una fecha válida (DD/MM/YYYY o DD-MM-YYYY) en el asunto."
+        return False, "<b>Error en el Asunto:</b> No se encontró una fecha válida (DD/MM/YYYY) en el texto del asunto."
         
     return True, ""
 
@@ -162,68 +162,72 @@ def validar_nombre_archivo(filename):
     return True
 
 def enviar_rechazo(msg, errores):
-    lista_errores = "".join(f"<li style='margin-bottom: 5px;'>{e}</li>" for e in errores)
+    lista_errores = "".join(f"<li style='margin-bottom: 8px; font-size: 15px;'>{e}</li>" for e in errores)
     cuerpo_html = f"""
     <html>
-    <body>
-    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 750px; margin: 0 auto; color: #333; line-height: 1.6; border: 1px solid #e1e4e8; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-        <div style="background-color: #d32f2f; color: white; padding: 20px; text-align: center;">
-            <h2 style="margin: 0; font-size: 24px; font-weight: 600;">&#9888;&#65039; Aviso de Rechazo de Corte de Caja</h2>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body style="background-color: #f4f7f6; padding: 15px; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <div style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 25px rgba(0,0,0,0.1); color: #333; line-height: 1.6;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%); color: white; padding: 30px 20px; text-align: center;">
+            <div style="font-size: 45px; margin-bottom: 12px;">⚠️</div>
+            <h2 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: 0.5px;">Aviso de Rechazo</h2>
+            <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 15px;">Tu envío no pudo ser procesado</p>
         </div>
         
-        <div style="padding: 30px;">
-            <p style="font-size: 16px;">Buen d&iacute;a,</p>
-            <p style="font-size: 16px;">El sistema autom&aacute;tico ha detectado que el correo con asunto <strong>"{msg.subject}"</strong> no cumple con los est&aacute;ndares establecidos y <strong>no ha podido ser procesado</strong>.</p>
+        <!-- Body -->
+        <div style="padding: 25px 20px;">
+            <p style="font-size: 16px; margin-top: 0;">Hola,</p>
+            <p style="font-size: 15px;">El sistema ha detectado que el correo con asunto <strong style="color: #000; background: #f0f0f0; padding: 3px 6px; border-radius: 4px; display: inline-block; margin-top: 5px; word-break: break-all;">"{msg.subject}"</strong> no cumple con los lineamientos.</p>
             
-            <div style="background-color: #ffebee; border-left: 4px solid #f44336; padding: 15px; margin: 20px 0;">
-                <h3 style="margin-top: 0; color: #d32f2f; font-size: 18px;">Motivo(s) del rechazo:</h3>
-                <ul style="margin-bottom: 0; color: #b71c1c; font-weight: 500; font-size: 15px;">
+            <!-- Error Box -->
+            <div style="background-color: #fff8f8; border: 1px solid #ffcdd2; border-left: 5px solid #d32f2f; padding: 15px; margin: 25px 0; border-radius: 6px;">
+                <h3 style="margin-top: 0; color: #b71c1c; font-size: 16px; display: flex; align-items: center;">
+                    <span style="margin-right: 8px;">❌</span> Motivo(s):
+                </h3>
+                <ul style="margin-bottom: 0; color: #c62828; padding-left: 20px; font-size: 14px;">
                     {lista_errores}
                 </ul>
             </div>
 
-            <h3 style="color: #1976d2; border-bottom: 2px solid #bbdefb; padding-bottom: 8px; margin-top: 30px;">&#128203; Lineamientos Correctos</h3>
-            <p>Por favor, revisa y corrige tu env&iacute;o bas&aacute;ndote en los siguientes par&aacute;metros oficiales:</p>
+            <!-- Guidelines -->
+            <h3 style="color: #1976d2; border-bottom: 2px solid #e3f2fd; padding-bottom: 8px; margin-top: 35px; font-size: 18px;">
+                <span style="margin-right: 8px;">📋</span> Cómo corregirlo
+            </h3>
             
-            <div style="background-color: #f5f7fa; border: 1px solid #e0e6ed; padding: 20px; border-radius: 6px; margin-bottom: 20px;">
-                <h4 style="margin-top: 0; color: #2c3e50; font-size: 16px;">1. Formato del Asunto (Env&iacute;o Normal)</h4>
-                <p style="margin-top: 5px; font-size: 14px;">Debe contener la palabra clave y la fecha en formato DD/MM/YYYY. Te sugerimos la siguiente estructura:</p>
-                <ul style="font-family: monospace; background: white; padding: 10px 10px 10px 30px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; list-style-type: square;">
-                    <li style="margin-bottom: 4px;">Corte de Caja, Canella, 03/09/2025</li>
-                    <li style="margin-bottom: 4px;">Corte de Caja, Vesa, 03/09/2025</li>
-                    <li style="margin-bottom: 4px;">Corte de Caja, Maquipos, 03/09/2025</li>
-                    <li style="margin-bottom: 4px;">Corte de Caja, Cobradores, 03/09/2025</li>
-                    <li style="margin-bottom: 4px;">Corte de Caja, Mister Credit, 03/09/2026</li>
-                    <li>Corte de Caja, Mauto, 03/09/2026</li>
-                </ul>
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; margin-bottom: 25px; margin-top: 15px;">
+                
+                <h4 style="margin-top: 0; color: #0f172a; font-size: 15px; border-left: 3px solid #3b82f6; padding-left: 10px;">1. Asunto</h4>
+                <div style="background: #ffffff; padding: 10px; border: 1px dashed #cbd5e1; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; color: #334155; margin-top: 10px; word-break: break-word;">
+                    <span style="color: #10b981;">✓</span> Corte de Caja, Canella, 03/09/2025<br><br>
+                    <span style="color: #10b981;">✓</span> Corte de Caja, Vesa, 03/09/2025 Corrección
+                </div>
 
-                <h4 style="margin-top: 25px; color: #2c3e50; font-size: 16px;">2. Formato del Asunto (Para Correcciones)</h4>
-                <p style="margin-top: 5px; font-size: 14px;">Si est&aacute;s enviando una correcci&oacute;n, debes agregar la palabra "Correcci&oacute;n" al final:</p>
-                <ul style="font-family: monospace; background: white; padding: 10px 10px 10px 30px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; list-style-type: square;">
-                    <li style="margin-bottom: 4px;">Corte de Caja, Canella, 03/09/2025 Correcci&oacute;n</li>
-                    <li style="margin-bottom: 4px;">Corte de Caja, Vesa, 03/09/2025 Correcci&oacute;n</li>
-                    <li style="margin-bottom: 4px;">Corte de Caja, Maquipos, 03/09/2025 Correcci&oacute;n</li>
-                    <li style="margin-bottom: 4px;">Corte de Caja, Cobradores, 03/09/2025 Correcci&oacute;n</li>
-                    <li style="margin-bottom: 4px;">Corte de Caja, Mister Credit, 03/09/2026 Correcci&oacute;n</li>
-                    <li>Corte de Caja, Mauto, 03/09/2026 Correcci&oacute;n</li>
-                </ul>
-
-                <h4 style="margin-top: 25px; color: #2c3e50; font-size: 16px;">3. Nomenclatura de Archivos Adjuntos (PDF o Excel)</h4>
-                <p style="margin-top: 5px; font-size: 14px;">El nombre del archivo debe estar separado por guiones (<code>-</code>) siguiendo este orden: <strong>Fecha - Nomenclatura Tienda - Nombre del documento</strong>.</p>
-                <ul style="font-family: monospace; background: white; padding: 10px 10px 10px 30px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; list-style-type: square;">
-                    <li style="margin-bottom: 4px;">31072026-ABC-CORTE EXCEL.xlsx</li>
-                    <li>31072026-ABC-CORTE SAP.pdf</li>
-                </ul>
+                <h4 style="margin-top: 25px; color: #0f172a; font-size: 15px; border-left: 3px solid #3b82f6; padding-left: 10px;">2. Archivos</h4>
+                <div style="background: #ffffff; padding: 10px; border: 1px dashed #cbd5e1; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; color: #334155; margin-top: 10px; word-break: break-word;">
+                    <span style="color: #10b981;">✓</span> 31072026-ABC-CORTE EXCEL.xlsx<br><br>
+                    <span style="color: #10b981;">✓</span> 31072026-ABC-CORTE SAP.pdf
+                </div>
             </div>
             
-            <p style="font-size: 15px; font-weight: 600; text-align: center; color: #e65100; padding: 15px; background: #fff3e0; border-radius: 6px;">
-                Por favor, vuelve a enviar un NUEVO CORREO cumpliendo estrictamente estos par&aacute;metros para que tu corte sea registrado.
-            </p>
+            <!-- Call to action -->
+            <div style="text-align: center; margin-top: 25px;">
+                <div style="font-size: 15px; font-weight: 600; color: #e65100; margin: 0; padding: 15px; background: #fff3e0; border-radius: 8px; display: block; border: 1px solid #ffcc80; line-height: 1.5;">
+                    Si el formato fue mal escrito, por favor enviar nuevamente el correo con la corrección a:<br>
+                    <a href="mailto:automatizacionescaja@canella.com.gt" style="color: #d32f2f; text-decoration: none; font-size: 16px; margin-top: 8px; display: inline-block;">✉️ automatizacionescaja@canella.com.gt</a>
+                </div>
+            </div>
         </div>
         
-        <div style="background-color: #f1f1f1; color: #777; font-size: 12px; text-align: center; padding: 15px; border-top: 1px solid #ddd;">
-            <em>Este es un mensaje autom&aacute;tico generado por el Sistema de Automatizaci&oacute;n de Cortes de Caja.<br>Por favor, no respondas a esta direcci&oacute;n.</em>
+        <!-- Footer -->
+        <div style="background-color: #f8f9fa; color: #888; font-size: 12px; text-align: center; padding: 20px; border-top: 1px solid #eaeaea;">
+            <p style="margin: 0;">Mensaje automático del Sistema de Automatización.</p>
+            <p style="margin: 5px 0 0 0;"><strong>No respondas a este correo.</strong></p>
         </div>
+        
     </div>
     </body>
     </html>
@@ -292,7 +296,7 @@ def check_emails():
             # Validación 2: Archivos adjuntos y sus nombres
             archivos_a_procesar = []
             if not has_attachments:
-                errores.append("El correo <strong>no contiene archivos adjuntos</strong>.")
+                errores.append("<b>Error en Archivos:</b> El correo <strong>no contiene archivos adjuntos</strong>.")
             else:
                 archivos_validos = False
                 for att in msg.attachments:
@@ -304,14 +308,14 @@ def check_emails():
                             
                         if not validar_nombre_archivo(att.name):
                             errores.append(
-                                f"El archivo <strong>'{att.name}'</strong> no cumple el formato requerido de guiones o la extensión no es Excel/PDF."
+                                f"<b>Error en Archivo Adjunto:</b> El archivo <strong>'{att.name}'</strong> tiene un formato incorrecto o su extensión no es válida (solo PDF o Excel)."
                             )
                         else:
                             archivos_validos = True
                             archivos_a_procesar.append(att)
                 
                 if not archivos_validos and not [e for e in errores if "archivo" in e.lower()]:
-                    errores.append("No se encontró ningún archivo físico válido (PDF o Excel).")
+                    errores.append("<b>Error en Archivos:</b> No se encontró ningún archivo físico válido (PDF o Excel) adjunto al correo.")
                     
             # Si hay errores de validación, rechazamos el correo y NO guardamos nada en red
             if errores:
