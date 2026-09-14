@@ -168,6 +168,10 @@ def validar_nombre_archivo(filename):
     return True
 
 def enviar_rechazo(msg, errores):
+    from datetime import datetime
+    today_str = datetime.now().strftime("%d/%m/%Y")
+    today_compact = datetime.now().strftime("%d%m%Y")
+    
     lista_errores = "".join(f"<li style='margin-bottom: 8px; font-size: 15px;'>{e}</li>" for e in errores)
     cuerpo_html = f"""
     <html>
@@ -180,21 +184,20 @@ def enviar_rechazo(msg, errores):
             <td style="padding: 0;">
         
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%); color: white; padding: 30px 20px; text-align: center;">
-            <div style="font-size: 45px; margin-bottom: 12px;">⚠️</div>
-            <h2 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: 0.5px;">Aviso de Rechazo</h2>
-            <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 15px;">Tu envío no pudo ser procesado</p>
+        <div style="background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%); color: white; padding: 25px 20px; text-align: center;">
+            <h2 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">Aviso de Rechazo</h2>
+            <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 15px;">Su env&iacute;o no pudo ser procesado</p>
         </div>
         
         <!-- Body -->
         <div style="padding: 25px 20px;">
-            <p style="font-size: 16px; margin-top: 0;">Hola,</p>
-            <p style="font-size: 15px;">El sistema ha detectado que el correo con asunto <strong style="color: #000; background: #f0f0f0; padding: 3px 6px; border-radius: 4px; display: inline-block; margin-top: 5px; word-break: break-all;">"{msg.subject}"</strong> no cumple con los lineamientos.</p>
+            <p style="font-size: 16px; margin-top: 0;">Estimado usuario,</p>
+            <p style="font-size: 15px;">El sistema ha detectado que el correo con asunto <strong style="color: #000; background: #f0f0f0; padding: 3px 6px; border-radius: 4px; display: inline-block; margin-top: 5px; word-break: break-all;">"{msg.subject}"</strong> no cumple con los lineamientos corporativos.</p>
             
             <!-- Error Box -->
             <div style="background-color: #fff8f8; border: 1px solid #ffcdd2; border-left: 5px solid #d32f2f; padding: 15px; margin: 25px 0; border-radius: 6px;">
                 <h3 style="margin-top: 0; color: #b71c1c; font-size: 16px; display: flex; align-items: center;">
-                    <span style="margin-right: 8px;">❌</span> Motivo(s):
+                    <span style="margin-right: 8px;">[!]</span> Motivo(s):
                 </h3>
                 <ul style="margin-bottom: 0; color: #c62828; padding-left: 20px; font-size: 14px;">
                     {lista_errores}
@@ -203,29 +206,29 @@ def enviar_rechazo(msg, errores):
 
             <!-- Guidelines -->
             <h3 style="color: #1976d2; border-bottom: 2px solid #e3f2fd; padding-bottom: 8px; margin-top: 35px; font-size: 18px;">
-                <span style="margin-right: 8px;">📋</span> Cómo corregirlo
+                Instrucciones para corregirlo
             </h3>
             
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; margin-bottom: 25px; margin-top: 15px;">
                 
-                <h4 style="margin-top: 0; color: #0f172a; font-size: 15px; border-left: 3px solid #3b82f6; padding-left: 10px;">1. Asunto</h4>
+                <h4 style="margin-top: 0; color: #0f172a; font-size: 15px; border-left: 3px solid #3b82f6; padding-left: 10px;">1. Formato del Asunto</h4>
                 <div style="background: #ffffff; padding: 10px; border: 1px dashed #cbd5e1; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; color: #334155; margin-top: 10px; word-break: break-word;">
-                    <span style="color: #10b981;">✓</span> Corte de Caja, Canella, 03/09/2025<br><br>
-                    <span style="color: #10b981;">✓</span> Corte de Caja, Vesa, 03/09/2025 Corrección
+                    &bull; Corte de Caja, [Nombre de tu Empresa], {today_str}<br><br>
+                    &bull; Corte de Caja, [Nombre de tu Empresa], {today_str} Correcci&oacute;n
                 </div>
 
-                <h4 style="margin-top: 25px; color: #0f172a; font-size: 15px; border-left: 3px solid #3b82f6; padding-left: 10px;">2. Archivos</h4>
+                <h4 style="margin-top: 25px; color: #0f172a; font-size: 15px; border-left: 3px solid #3b82f6; padding-left: 10px;">2. Formato de Archivos (PDF o Excel)</h4>
                 <div style="background: #ffffff; padding: 10px; border: 1px dashed #cbd5e1; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; color: #334155; margin-top: 10px; word-break: break-word;">
-                    <span style="color: #10b981;">✓</span> 31072026-ABC-CORTE EXCEL.xlsx<br><br>
-                    <span style="color: #10b981;">✓</span> 31072026-ABC-CORTE SAP.pdf
+                    &bull; {today_compact}-ABC-[Tipo de Documento].xlsx<br><br>
+                    &bull; {today_compact}-ABC-[Tipo de Documento].pdf
                 </div>
             </div>
             
             <!-- Call to action -->
             <div style="text-align: center; margin-top: 25px;">
                 <div style="font-size: 15px; font-weight: 600; color: #e65100; margin: 0; padding: 15px; background: #fff3e0; border-radius: 8px; display: block; border: 1px solid #ffcc80; line-height: 1.5;">
-                    Si el formato fue mal escrito, por favor enviar nuevamente el correo con la corrección a:<br>
-                    <a href="mailto:automatizacionescaja@canella.com.gt" style="color: #d32f2f; text-decoration: none; font-size: 16px; margin-top: 8px; display: inline-block;">✉️ automatizacionescaja@canella.com.gt</a>
+                    Si el formato fue mal escrito, por favor enviar nuevamente el correo con la correcci&oacute;n a:<br>
+                    <a href="mailto:automatizacionescaja@canella.com.gt" style="color: #d32f2f; text-decoration: none; font-size: 16px; margin-top: 8px; display: inline-block; font-weight: bold;">automatizacionescaja@canella.com.gt</a>
                 </div>
             </div>
         </div>
