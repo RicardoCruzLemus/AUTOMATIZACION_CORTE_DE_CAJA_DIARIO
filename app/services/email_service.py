@@ -206,8 +206,14 @@ def enviar_rechazo(msg, errores):
             <p style="font-size: 16px; margin-top: 0;">Estimado usuario,</p>
             <p style="font-size: 15px;">El sistema ha detectado que el correo con asunto <strong style="color: #000; background: #f0f0f0; padding: 3px 6px; border-radius: 4px; display: inline-block; margin-top: 5px; word-break: break-all;">"{msg.subject}"</strong> no cumple con los lineamientos corporativos.</p>
             
-            <div style="background-color: #fff3cd; color: #856404; padding: 12px 15px; border-left: 4px solid #ffeeba; border-radius: 4px; margin-top: 15px; font-size: 14px; font-weight: 600;">
-                [!] ACCIÓN REQUERIDA: Es obligatorio volver a enviar el correo de corte de caja con las correcciones correspondientes.
+            <div style="background-color: #fff3cd; color: #856404; padding: 15px; border-left: 4px solid #ffeeba; border-radius: 4px; margin-top: 15px; font-size: 14px;">
+                <div style="font-weight: 600;">
+                    [!] ACCIÓN REQUERIDA: Es obligatorio volver a enviar el correo de corte de caja con las correcciones correspondientes.
+                </div>
+                <div style="font-size: 14px; color: #664d03; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(133, 100, 4, 0.2); line-height: 1.5;">
+                    Si el formato fue mal escrito, por favor enviar nuevamente el correo con la correcci&oacute;n a:<br>
+                    <a href="mailto:automatizacionescaja@canella.com.gt" style="color: #d32f2f; text-decoration: none; font-size: 15px; margin-top: 5px; display: inline-block; font-weight: bold;">automatizacionescaja@canella.com.gt</a>
+                </div>
             </div>
             
             <!-- Error Box -->
@@ -245,13 +251,6 @@ def enviar_rechazo(msg, errores):
                 </div>
             </div>
             
-            <!-- Call to action -->
-            <div style="text-align: center; margin-top: 25px;">
-                <div style="font-size: 15px; font-weight: 600; color: #e65100; margin: 0; padding: 15px; background: #fff3e0; border-radius: 8px; display: block; border: 1px solid #ffcc80; line-height: 1.5;">
-                    Si el formato fue mal escrito, por favor enviar nuevamente el correo con la correcci&oacute;n a:<br>
-                    <a href="mailto:automatizacionescaja@canella.com.gt" style="color: #d32f2f; text-decoration: none; font-size: 16px; margin-top: 8px; display: inline-block; font-weight: bold;">automatizacionescaja@canella.com.gt</a>
-                </div>
-            </div>
         </div>
         
         <!-- Footer -->
