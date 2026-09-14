@@ -149,8 +149,14 @@ def validar_asunto(subject):
         
     # 3. Validar que el año no sea antiguo (2025 hacia atrás)
     year = int(date_str.split('-')[2])
+    current_year = datetime.now().year
+    
     if year <= 2025:
-        return False, f"<b>Error en el Asunto:</b> La fecha ingresada ({date_str}) contiene un año antiguo ({year}). Por favor verifica que el año sea correcto (ej. 2026 en adelante)."
+        return False, f"<b>Error en el Asunto:</b> La fecha ingresada ({date_str}) contiene un año antiguo ({year}). Por favor verifica que el año sea correcto (ej. {current_year})."
+    
+    # 4. Validar que el año no esté en el futuro
+    if year > current_year:
+        return False, f"<b>Error en el Asunto:</b> La fecha ingresada ({date_str}) contiene un año en el futuro ({year}). Por favor verifica que la fecha sea correcta."
         
     return True, ""
 
