@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -18,6 +18,19 @@ REJECTED_LOG_FILE = 'rejected_logs.json'
 
 log_lock = threading.Lock()
 rejected_lock = threading.Lock()
+
+def _filter_recent_logs(logs, days=30):
+    threshold = datetime.now() - timedelta(days=days)
+    filtered = []
+    for log in logs:
+        try:
+            if 'timestamp' in log:
+                log_date = datetime.strptime(log['timestamp'], '%Y-%m-%d %H:%M:%S')
+                if log_date >= threshold:
+                    filtered.append(log)
+        except Exception:
+            continue
+    return filtered
 
 def append_log(filename, status, message, destino='', asunto=''):
     log_entry = {
@@ -37,6 +50,7 @@ def append_log(filename, status, message, destino='', asunto=''):
             except Exception:
                 pass
         logs.insert(0, log_entry)  # Add to beginning
+        logs = _filter_recent_logs(logs, 30)
         with open(LOG_FILE, 'w', encoding='utf-8') as f:
             json.dump(logs, f, indent=4)
 
@@ -56,6 +70,7 @@ def append_rejected_log(asunto, motivo, archivos):
             except Exception:
                 pass
         logs.insert(0, log_entry)
+        logs = _filter_recent_logs(logs, 30)
         with open(REJECTED_LOG_FILE, 'w', encoding='utf-8') as f:
             json.dump(logs, f, indent=4)
 
