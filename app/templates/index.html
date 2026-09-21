@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Corte de Caja - Auto Sync</title>
+    <title>Automatización Cortes de Caja</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0f172a;
-            --glass-bg: rgba(30, 41, 59, 0.7);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --accent-glow: rgba(56, 189, 248, 0.5);
-            --success: #10b981;
-            --error: #ef4444;
-            --accent: #38bdf8;
+            --bg-color: #f8fafc;
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --glass-border: rgba(0, 0, 0, 0.08);
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --accent-glow: rgba(2, 132, 199, 0.3);
+            --success: #059669;
+            --error: #dc2626;
+            --accent: #0284c7;
         }
 
         body {
@@ -29,36 +29,68 @@
             flex-direction: column;
             align-items: center;
             background-image: 
-                radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.15), transparent 25%),
-                radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.15), transparent 25%);
+                radial-gradient(circle at 15% 50%, rgba(2, 132, 199, 0.08), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(124, 58, 237, 0.08), transparent 25%);
         }
 
         .container {
             width: 95%;
             max-width: 1400px;
             padding: 2rem;
-            margin-top: 3rem;
+            margin-top: 1rem;
         }
 
-        header {
-            text-align: center;
-            margin-bottom: 2rem;
+        /* ====== HEADER ====== */
+        .main-header {
+            width: 100%;
+            background: #ffffff;
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.05);
+            border-bottom: 1px solid var(--glass-border);
+            padding: 1.2rem 0;
             animation: fadeInDown 0.8s ease-out;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            width: 95%;
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .header-logo {
+            height: 65px;
+            object-fit: contain;
+        }
+
+        .header-text {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border-left: 2px solid rgba(0,0,0,0.08);
+            padding-left: 1.5rem;
         }
 
         h1 {
-            font-size: 2.5rem;
-            font-weight: 600;
+            font-size: 1.8rem;
+            font-weight: 700;
             margin: 0;
-            background: linear-gradient(to right, #38bdf8, #8b5cf6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #0f172a;
+            letter-spacing: -0.5px;
         }
 
         p.subtitle {
-            color: var(--text-secondary);
-            margin-top: 0.5rem;
-            font-size: 1.1rem;
+            color: var(--accent);
+            margin: 0;
+            margin-top: 0.25rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         /* ====== TABS ====== */
@@ -91,21 +123,21 @@
 
         .tab-btn:hover {
             color: var(--text-primary);
-            background: rgba(255,255,255,0.05);
+            background: rgba(0,0,0,0.05);
         }
 
         .tab-btn.active {
-            color: white;
-            background: rgba(56, 189, 248, 0.2);
-            border: 1px solid rgba(56, 189, 248, 0.4);
-            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+            color: var(--accent);
+            background: rgba(2, 132, 199, 0.1);
+            border: 1px solid rgba(2, 132, 199, 0.3);
+            box-shadow: 0 0 15px rgba(2, 132, 199, 0.1);
         }
 
         .tab-btn.active-error {
-            color: white;
-            background: rgba(239, 68, 68, 0.2);
-            border: 1px solid rgba(239, 68, 68, 0.4);
-            box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+            color: var(--error);
+            background: rgba(220, 38, 38, 0.1);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            box-shadow: 0 0 15px rgba(220, 38, 38, 0.1);
         }
 
         .tab-content {
@@ -169,7 +201,7 @@
 
         .filters-bar input[type="text"],
         .filters-bar input[type="date"] {
-            background: rgba(15, 23, 42, 0.6);
+            background: rgba(255, 255, 255, 0.8);
             border: 1px solid var(--glass-border);
             color: var(--text-primary);
             padding: 10px 14px;
@@ -224,7 +256,7 @@
         th, td {
             padding: 0.85rem 1rem;
             text-align: left;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
         }
 
         th {
@@ -270,7 +302,7 @@
         }
 
         tbody tr:hover {
-            background-color: rgba(255, 255, 255, 0.03);
+            background-color: rgba(0, 0, 0, 0.02);
         }
 
         .empty-state {
@@ -300,7 +332,7 @@
         }
 
         .pagination-buttons button {
-            background: rgba(15, 23, 42, 0.6);
+            background: rgba(255, 255, 255, 0.8);
             border: 1px solid var(--glass-border);
             color: var(--text-primary);
             padding: 8px 14px;
@@ -338,19 +370,102 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* ====== MODAL ====== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .modal-content {
+            background: var(--bg-color);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            position: relative;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding-bottom: 0.5rem;
+        }
+        .modal-header h3 { margin: 0; color: var(--accent); }
+        .btn-close {
+            background: transparent; border: none; color: var(--text-secondary);
+            font-size: 1.5rem; cursor: pointer; transition: color 0.2s;
+        }
+        .btn-close:hover { color: var(--error); }
+        .modal-body {
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            line-height: 1.5;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .btn-icon {
+            background: rgba(2, 132, 199, 0.1);
+            border: 1px solid rgba(2, 132, 199, 0.2);
+            color: var(--accent);
+            border-radius: 6px;
+            padding: 6px 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-icon:hover {
+            background: rgba(2, 132, 199, 0.2);
+        }
+        .btn-icon svg { width: 16px; height: 16px; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding: 1.5rem 0;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--glass-border);
+            line-height: 1.6;
+        }
+
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Corte de Caja Sync</h1>
-            <p class="subtitle">Transferencia automatizada en tiempo real</p>
-        </header>
+    <header class="main-header">
+        <div class="header-content">
+            <img src="/static/img/logo_canella.png" alt="Logo Canella" class="header-logo">
+            <div class="header-text">
+                <h1>Automatización Cortes de Caja</h1>
+                <p class="subtitle">Departamento de Contabilidad</p>
+            </div>
+        </div>
+    </header>
 
+    <div class="container">
         <!-- Tabs Navigation -->
         <div class="tabs-container">
-            <button class="tab-btn active" id="btn-exitos" onclick="switchTab('tab-exitos', this)">✅ Correos Procesados</button>
-            <button class="tab-btn" id="btn-rechazos" onclick="switchTab('tab-rechazos', this, true)">⚠️ Correos Rechazados</button>
+            <button class="tab-btn active" id="btn-exitos" onclick="switchTab('tab-exitos', this)">Correos Procesados</button>
+            <button class="tab-btn" id="btn-rechazos" onclick="switchTab('tab-rechazos', this, true)">Correos Rechazados</button>
         </div>
 
         <!-- Tab Content 1: Procesados -->
@@ -366,7 +481,7 @@
 
                 <!-- Barra de Filtros -->
                 <div class="filters-bar">
-                    <input type="text" id="filter-filename" placeholder="🔍 Buscar nombre de archivo..." oninput="applyFilters()">
+                    <input type="text" id="filter-filename" placeholder="Buscar nombre de archivo..." oninput="applyFilters()">
                     <label>
                         Desde
                         <input type="date" id="filter-date-from" onchange="applyFilters()">
@@ -375,7 +490,7 @@
                         Hasta
                         <input type="date" id="filter-date-to" onchange="applyFilters()">
                     </label>
-                    <button class="btn-clear" onclick="clearFilters()">✕ Limpiar</button>
+                    <button class="btn-clear" onclick="clearFilters()">Limpiar</button>
                 </div>
 
                 <table>
@@ -419,8 +534,8 @@
                         <tr>
                             <th>Fecha / Hora</th>
                             <th>Asunto del Correo</th>
-                            <th>Archivos Adjuntos</th>
                             <th>Motivo del Rechazo</th>
+                            <th>Archivos Adjuntos</th>
                         </tr>
                     </thead>
                     <tbody id="rejected-logs-body">
@@ -438,6 +553,23 @@
             </div>
         </div>
 
+        <!-- Modal -->
+        <div class="modal-overlay" id="info-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-title">Detalle</h3>
+                    <button class="btn-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body" id="modal-body">
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            Automatización corte de caja, Desarrollado, Canella 2026 &copy;<br>
+            Departamento de contabilidad Canella, desarrollado por Informatica Canella
+        </footer>
     </div>
 
     <script>
@@ -469,9 +601,9 @@
         let filteredLogs = [];
         let rejectedLogs = [];
         let currentPage = 1;
-        const PAGE_SIZE = 15;
+        const PAGE_SIZE = 10;
         let rejectedCurrentPage = 1;
-        const REJECTED_PAGE_SIZE = 3;
+        const REJECTED_PAGE_SIZE = 10;
 
         async function fetchLogs() {
             try {
@@ -552,6 +684,9 @@
                 let statusClass = 'error';
                 if (log.status === 'EXITO') statusClass = 'exito';
                 if (log.status === 'IGNORADO') statusClass = 'ignorado';
+                
+                // Reemplazar comillas simples para evitar romper el onclick
+                const escapedMsg = (log.message || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
                 const row = `
                     <tr>
@@ -560,7 +695,11 @@
                         <td style="vertical-align: top;"><span class="badge ${statusClass}">${log.status}</span></td>
                         <td style="color: var(--text-secondary); vertical-align: top; font-size: 0.85rem;">${log.destino || '-'}</td>
                         <td style="color: var(--text-secondary); vertical-align: top; font-size: 0.85rem;">${log.asunto || 'Local/Manual'}</td>
-                        <td style="color: var(--text-secondary); line-height: 1.4; vertical-align: top;">${log.message}</td>
+                        <td style="vertical-align: top;">
+                            <button class="btn-icon" title="Ver Detalle" onclick="openModal('Detalle de Procesamiento', '${escapedMsg}')">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                            </button>
+                        </td>
                     </tr>
                 `;
                 tbody.innerHTML += row;
@@ -600,7 +739,7 @@
             const paginationBar = document.getElementById('rejected-pagination-bar');
             
             if (!rejectedLogs || rejectedLogs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No hay correos rechazados. ¡Todo perfecto! 🎉</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No hay correos rechazados.</td></tr>';
                 paginationBar.style.display = 'none';
                 return;
             }
@@ -613,15 +752,21 @@
             tbody.innerHTML = '';
             pageLogs.forEach(log => {
                 const archivosHTML = log.archivos && log.archivos.length > 0 
-                    ? log.archivos.map(a => `<div style="font-size: 0.85rem; padding: 3px 0; color: #cbd5e1;">📄 ${a}</div>`).join('') 
+                    ? log.archivos.map(a => `<div style="font-size: 0.85rem; padding: 3px 0; color: var(--text-secondary);">- ${a}</div>`).join('') 
                     : '<span style="color: var(--text-secondary); font-size:0.85rem;">Ninguno</span>';
+                    
+                const escapedArchivos = archivosHTML.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                
+                const btnArchivos = log.archivos && log.archivos.length > 0 
+                    ? `<button class="btn-icon" title="Ver Archivos" onclick="openModal('Archivos Adjuntos', '${escapedArchivos}')"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg></button>`
+                    : `<span style="color: var(--text-secondary); font-size:0.85rem;">Ninguno</span>`;
                     
                 const row = `
                     <tr style="background-color: rgba(239, 68, 68, 0.02);">
                         <td style="color: var(--text-secondary); vertical-align: top; white-space: nowrap;">${log.timestamp}</td>
                         <td style="font-weight: 500; vertical-align: top;">${log.asunto || 'Sin asunto'}</td>
-                        <td style="vertical-align: top;">${archivosHTML}</td>
-                        <td style="color: var(--error); line-height: 1.4; vertical-align: top; font-size: 0.9rem;">${log.motivo}</td>
+                        <td style="color: var(--text-primary); line-height: 1.4; vertical-align: top; font-size: 0.9rem;">${log.motivo}</td>
+                        <td style="vertical-align: top;">${btnArchivos}</td>
                     </tr>
                 `;
                 tbody.innerHTML += row;
@@ -653,6 +798,25 @@
             if (page < 1 || page > totalPages) return;
             rejectedCurrentPage = page;
             renderRejectedTable();
+        }
+
+        // === MODAL LOGIC ===
+        function openModal(title, content) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').innerHTML = content;
+            document.getElementById('info-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('info-modal').classList.remove('active');
+        }
+
+        // Close on clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('info-modal');
+            if (event.target == modal) {
+                closeModal();
+            }
         }
 
         // Carga inicial y auto-refresh
