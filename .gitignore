@@ -12,3 +12,6 @@ transfer_logs.json
 correos_procesados.json
 
 .token_cache.json
+\
+cloudflared.exe
+rejected_logs.json
